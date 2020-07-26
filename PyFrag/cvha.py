@@ -39,7 +39,8 @@ def modelEM (bh,nc): # Not producing anything useful so far...
     em= cv2.ml.EM_create()
     em.setClustersNumber(nc)
     em.trainEM(bh)
-    print( em.getMeans() )
+    print('M:', em.getMeans() )
+    print('W:', em.getWeights() )
 
 def hist (dat,mm,nBins):
     hist,binE= numpy.histogram(dat,bins=nBins,range=mm)
@@ -92,4 +93,4 @@ if "__main__" == __name__ :
         imH8= numpy.uint8( imH32 * (0xFF / 360.0) )
         satMask= 0xFF * (imH8 > 0x1F).astype(numpy.uint8)
         bh= info(imH8, satMask)
-    #modelEM(h,10)
+    modelEM(h,10)
