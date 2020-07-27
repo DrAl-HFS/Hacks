@@ -5,16 +5,25 @@
 import sys
 import cv2
 import numpy
-from sklearn import mixture
+#from sklearn import mixture
 
-def dumpBH (bh):
-    sum= 0
+
+def sklModelEM (h,nc):
+    em= mixture.GaussianMixture(n_components=nc, covariance_type='spherical') # Doesn't support 1D...
+    em.fit(h)
+    print(em)
+
+def dumpBH (hist,hvl=1000000000):
     i= 0
-    for b in bh:
-        if b > 0:
-            print(hex(i),':',int(b))
-            sum+= int(b)
+    n= 0
+    sum= 0
+    for f in hist:
+        if f > hvl:
+            print(hex(i),':',f)
+        n+= (f > 0)
+        sum+= f
         i+= 1
+    print("Occupancy:", ((100.0*n) / len(hist)),"%")
     return sum
 
 def dumpFH (fh,v0,vs):
@@ -26,14 +35,14 @@ def dumpFH (fh,v0,vs):
         v0+= vs
     return sum
 
-def info (img,msk,maxBin=256):
-    sh= img.shape
-    n= sh[0]*sh[1]
-    print( type(img), sh, "n=", n)
-    bh= cv2.calcHist([img],[0],msk,[maxBin],[0,maxBin])
-    nh= dumpBH(bh)
-    print("total:",nh,"(ex=",n-nh,")")
-    return bh
+def cvHist (img,msk,maxBin=256):
+    hist= cv2.calcHist([img],[0],msk,[maxBin],[0,maxBin])
+    #x= hist[0][0] # numpy.float32 always?
+    #print(type(x), x)
+    n= img.shape[0] * img.shape[1]
+    sh= dumpBH(hist,n/maxBin)
+    #print("total:",nh,"(ex=",n-nh,")")
+    return hist
 
 def cvModelEM (h,nc): # Not producing anything useful so far...
     #em= cv2.ml.EM(bh, nclusters=nc) #, covMatType=EM::COV_MAT_DIAGONAL,TermCriteria
@@ -43,24 +52,27 @@ def cvModelEM (h,nc): # Not producing anything useful so far...
     print('M:', em.getMeans() )
     print('W:', em.getWeights() )
 
-def sklModelEM (h,nc):
-    em= mixture.GaussianMixture(n_components=nc, covariance_type='spherical') # Doesn't support 1D...
-    em.fit(h)
-    print(em)
-
 # No mask provision in this version
 def npHist (dat,mm,nBins,hvl=1000000000):
     #hist= numpy.bincount(datI,minlength=nBins) # integral type only
     hist,binE= numpy.histogram(dat,bins=nBins,range=mm)
+    # print(type(hist), type(hist[0]), hist[0]) = <numpy.int32> / <numpy.float64> when density=True
     i= 0
-    v= 0
+    n= 0
     for h,b in zip(hist,binE):
         if h>hvl:
             print(b,'[',i,']:',h)
-        v+= (h > 0)
+        n+= (h > 0)
         i+= 1
-    print("Occupancy:", ((100.0*v) / i),"%")
+    print("Occupancy:", ((100.0*n) / len(hist)),"%")
     return hist
+
+def procCV (imBGR8):
+    imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
+    #imH8= numpy.uint8( imH32 * (0xFF / 360.0) ) # 0~0xFF
+    imH8= imHSV8[:,:,0] # 0 ~ 179
+    satM8= 0xFF * (imHSV8[:,:,1] > 0x1F).astype(numpy.uint8)
+    bh= cvHist(imH8, satM8)
 
 if "__main__" == __name__ :
     try:
@@ -69,9 +81,9 @@ if "__main__" == __name__ :
         print("Usage:",sys.argv[0],"<image-file>")
         #imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
         #bh= info(imHSV8,None)
-        #print("---")
+    procCV(imBGR8)
+    print("---")
     print("->f32")
-#    imBGR32= numpy.float32(imBGR8)
     imHSV32= cv2.cvtColor(numpy.float32(imBGR8), cv2.COLOR_BGR2HSV)
     # NB: Conversion always generates H range 0.0, 360.0 irrespective of input scale.
     # (However S & V normed 0.0~1.0 as might be expected.)
@@ -88,12 +100,6 @@ if "__main__" == __name__ :
         fh,w= myHist(imH32, mm, 500)
         print("w=",w)
         dumpFH(fh,mm[0],w)
-    if False:
         print("---")
-        imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
-        #imH8= numpy.uint8( imH32 * (0xFF / 360.0) ) # 0~0xFF
-        imH8= imHSV8[:,:,0] # 0 ~ 179
-        satM8= 0xFF * (imHSV8[:,:,1] > 0x1F).astype(numpy.uint8)
-        bh= info(imH8, satM8)
-    sklModelEM(h,10)
+    #sklModelEM(h,10)
     #cvModelEM(h,10)
