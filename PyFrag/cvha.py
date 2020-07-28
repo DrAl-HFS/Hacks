@@ -7,6 +7,36 @@ import cv2
 import numpy
 #from sklearn import mixture
 
+def cfTest (x):
+    from cffi import FFI # NB: install python3-cffi
+    ffi= FFI()
+    ffi.cdef("int normP1NIF (double r[], const int x[], const int n);")
+    #"size_t strlen(const char*);")
+    em= ffi.dlopen("/home/al/dev/Hacks/CFrag/em.so")
+    r= numpy.zeros( (x.size), dtype=float)
+    # TypeError: initializer for ctype 'double *' must be a cdata pointer, not numpy.ndarray
+    n= em.normP1NIF(r, x, len(x))
+    return r, n
+
+from ctypes import *
+def ctTest (x):
+    em= CDLL("/home/al/dev/Hacks/CFrag/em.so")
+    nrmf= em.normP1NIF
+    nrmf.argtypes= [ POINTER(c_double), POINTER(c_int), c_int ]
+    nrmf.restype= c_int
+    r= numpy.zeros( (x.size), dtype=float)
+    n= nrmf(r.ctypes.data_as(POINTER(c_double)), x.ctypes.data_as(POINTER(c_int)), x.size)
+    return r, n
+
+#def ctTest (x):
+#    import ctypes # FQN=tedious...
+#    em= ctypes.CDLL("/home/al/dev/Hacks/CFrag/em.so")
+#    nrmf= em.normP1NIF
+#    nrmf.argtypes= [ ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_int), ctypes.c_int ]
+#    nrmf.restype= ctypes.c_int
+#    r= numpy.zeros( (n), dtype=float)
+#    n= nrmf(r.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), x.ctypes.data_as(ctypes.POINTER(ctypes.c_int)), x.size)
+#    return r, n
 
 def sklModelEM (h,nc):
     em= mixture.GaussianMixture(n_components=nc, covariance_type='spherical') # Doesn't support 1D...
@@ -94,6 +124,9 @@ if "__main__" == __name__ :
     nSh= sh[0] * sh[1]
     mm= ( numpy.min(imH32), numpy.max(imH32) )
     h= npHist(imH32.ravel(),mm,1000,nSh/100)
+    print("---")
+    pmf, n= ctTest(h)
+    print(n,pmf)
     if False:
         print("---")
         print("H range:", mm)
