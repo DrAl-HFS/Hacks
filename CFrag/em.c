@@ -1,15 +1,32 @@
+// em.c - Simple 1D Expectation Maximisation for distribution modelling.
+// https://github.com/DrAl-HFS/Hacks.git (GPL3 licence)
+// (c) Project Contributors July 2020
 
-#include "math.h"
-
+#include <math.h>
+#include <stdlib.h>
 
 /**/
 
 typedef double WF; // Wide float type
 typedef struct { WF p,m,sd; } GM; // Gaussian (mixture) Model descriptor
+typedef struct { void *p; size_t bytes; } MB;
+typedef struct
+{
+   MB mb;   // Buffer
+   GM *pR;  // Result (intermediate)
+   const WF *pO; // Observations (input)
+   WF *pGK, *pE;  // Working coefficient / expectation data
+   WF *pM0, *pM1, *pM2; // Moment accumulation
+   int maxM, maxO; //
+} WorkCtx;
 
-// Pure float routines
-// Vector->scalar reductions assume n>=1
+
+/**/
+
+// Float vector functions (mostly scalar reductions)
 //WF sumNF (const WF x[], const int n) { WF t= (n>0)?x[0]:0; for (int i=1; i<n; i++) { t+= x[i]; } return(t); }
+//WF dotNF (const WF x[], const WF y[], const int n) { WF t= (n>0)?x[0]*y[0]:0; for (int i=1; i<n; i++) { t+= x[i] * y[i]; } return(t); }
+
 WF sumStrideNF (const WF w[], const int s, const int n) { WF t= (n>0)?w[0]:0; for (int i=1; i<n; i++) { t+= w[i*s]; } return(t); }
 WF sumIProdStrideNF (const WF w[], const int s, const int n) { WF t= 0; for (int i=1; i<n; i++) { t+= i * w[i*s]; } return(t); }
 WF sumISSDStrideNF (const WF w[], const int s, const int n, const WF x0)
@@ -21,10 +38,6 @@ WF sumISSDStrideNF (const WF w[], const int s, const int n, const WF x0)
    } 
    return(t);
 } // sumISSDStrideNF
-
-WF dotNF (const WF x[], const WF y[], const int n) { WF t= x[0] * y[0]; for (int i=1; i<n; i++) { t+= x[i] * y[i]; } return(t); }
-
-void scaleNF (WF r[], const WF x[], const int n, const WF k) { for (int i=0; i<n; i++) { r[i]= x[i] * k; } }
 
 // Accumulate parallel sets of individually weighted moments of constant x
 void accumM3NF (WF rm0[], WF rm1[], WF rm2[], const WF w[], const WF x, const int n)
@@ -38,9 +51,11 @@ void accumM3NF (WF rm0[], WF rm1[], WF rm2[], const WF w[], const WF x, const in
    } 
 } // accumM3NF
 
+void scaleNF (WF r[], const WF x[], const int n, const WF k) { for (int i=0; i<n; i++) { r[i]= x[i] * k; } }
 
+// Gaussian model functions
 const WF K0= 1.0 / sqrt(2 * M_PI);
-
+// Convert model descriptor to coefficients for efficient evaluation
 void getGK (WF gk[3], const GM *pGM)
 {  // assume ((pGM->p > EPS) && (pGM->sd > EPS))
    gk[0]= pGM->p * K0 / pGM->sd;
@@ -48,6 +63,32 @@ void getGK (WF gk[3], const GM *pGM)
    gk[2]= -1 / (2 * pGM->sd * pGM->sd);
 } // getGK
 
+// Convert moments to model descriptors
+// NB: single pass variance estimation is not robust where sample values vary
+// by orders of magnitude. (Not the case in this application.)
+int setNGM (GM *pGM, const WF m0[], const WF m1[], const WF m2[], const int n) // , const int dof ??
+{
+   int nValid= 0;
+   for (int i= 0; i<n; i++)
+   {
+      pGM[i].p= m0[i];
+      if (pGM[i].p > 0)
+      {
+         const WF rn=   1.0 / pGM[i].p;
+         const WF mean= m1[i] * rn;
+         const WF ssd=  m2[i] - m1[i] * mean;
+         if (ssd > 0)
+         {
+            pGM[i].m= mean;
+            pGM[i].sd= sqrt(ssd * rn);
+            nValid++;
+         }
+      }
+   }
+   return(nValid);
+} // setNGM
+
+// Evaluate n models for given x, storing individual results and computing sum
 WF evalNGK (WF p[], const WF x, const WF gk[][3], const int n) // gk=[kP,M,kV]
 {
    WF t= 0;
@@ -59,6 +100,27 @@ WF evalNGK (WF p[], const WF x, const WF gk[][3], const int n) // gk=[kP,M,kV]
    return(t);
 } // evalGK
 
+
+/**/
+
+// All-in-one EM pass with minimal memory usage
+int em (WorkCtx *pC, const WF gk[][3], const int nGK, const WF pmf[], const int nPMF)
+{
+   for (int i= 0; i<nPMF; i++)
+   {
+      WF s= evalNGK(pC->pE, i, gk, nGK);
+      if (s > 0)
+      {  // Compute new partial probabilities weighted by observations
+         scaleNF(pC->pE, pC->pE, nGK, pmf[i] / s);
+         // Accumulate as moments of order 0,1,2
+         accumM3NF(pC->pM0, pC->pM1, pC->pM2, pC->pE, i, nGK);
+      }
+   }
+   // Convert moments to Gaussian model descriptors
+   return setNGM(pC->pR, pC->pM0, pC->pM1, pC->pM2, nGK);
+} // em
+
+// Separate E,M passes requiring large buffer for intermediate results
 void expect (WF p[], const WF gk[][3], const int nGK, const WF pmf[], const int nPMF)
 {
    for (int i= 0; i<nPMF; i++)
@@ -68,7 +130,6 @@ void expect (WF p[], const WF gk[][3], const int nGK, const WF pmf[], const int 
       if (s > 0)
       {  // Compute new partial probabilities weighted by observations
          scaleNF(p+j, p+j, nGK, pmf[i] / s);
-         //accumM3NF(m0,m1,m2,p+j,i,nGK)
       }
    }
 } // expect
@@ -80,7 +141,7 @@ int maximise (GM *pR, const WF p[], const int nGK, const int nPMF) // m0,m1,m2
    {
       pR[i].p= sumStrideNF(p+i, nGK, nPMF);
       if (pR[i].p > 0)
-      {
+      {  // Classic 2-pass measurement of mean&variance
          const WF rp= 1.0 / pR[i].p;
          pR[i].m= sumIProdStrideNF(p+i, nGK, nPMF) * rp;
          pR[i].sd= sqrt(sumISSDStrideNF(p+i, nGK, nPMF, pR[i].m) * rp);
@@ -91,7 +152,7 @@ int maximise (GM *pR, const WF p[], const int nGK, const int nPMF) // m0,m1,m2
    return(nK);
 } // maximise
 
-// int to float routines
+// int to float vector routines
 WF sumNIF (const int x[], const int n) { WF s= x[0]; for (int i=1; i<n; i++) { s+= x[i]; } return(s); }
 
 void scaleNIF (WF r[], const int x[], const int n, const WF s) { for (int i=0; i<n; i++) { r[i]= s * x[i]; } }
@@ -103,85 +164,69 @@ int normP1NIF (WF r[], const int x[], const int n)
    return(0);
 } // normP1NIF
 
+size_t alignPO2 (const size_t s, const size_t b)
+{
+   size_t a= (1<<b)-1;
+   return((s+a) & ~a);
+} // alignPO2
+
+const WorkCtx * initWC (WorkCtx *pWC, const WF *pO, const size_t maxO, const size_t maxM)
+{
+   pWC->mb.bytes= sizeof(WF) * maxM * (maxO + 12);
+   if (NULL == pO) { pWC->mb.bytes+= sizeof(WF) * maxO; }
+   pWC->mb.bytes= alignPO2(pWC->mb.bytes, 12); // round up to 4K
+   pWC->mb.p= malloc(pWC->mb.bytes);
+   if (pWC->mb.p)
+   {
+      if (NULL == pO)
+      {
+         pWC->pO= pWC->mb.p;
+         pWC->pR= (void*)(pWC->pO + maxO);
+      }
+      else
+      {
+         pWC->pO= pO;
+         pWC->pR= pWC->mb.p;
+      }
+      pWC->pGK= (void*)(pWC->pR + maxM);
+      pWC->pE= pWC->pGK + 3 * maxM;
+      pWC->pM0= pWC->pE + (maxO * maxM);
+      pWC->pM1= pWC->pM0 + maxM;
+      pWC->pM2= pWC->pM1 + maxM;
+      pWC->maxM= maxM;
+      pWC->maxO= maxO;
+      return(pWC);
+   }
+   return(NULL);
+} // initWC
+
+void freeWC (WorkCtx *pWC)
+{
+   if (pWC->mb.p)
+   {
+      free(pWC->mb.p);
+      pWC->mb.p= NULL;
+      //memset(pWC, 0, sizeof(*pWC));
+   }
+} // freeWC
 
 #ifndef LIB_TARGET
 
-#include "stdio.h"
+#include "emTest.c"
 
-#define MAX_GM 1
-
-WF uniformSampleGMM (WF p[], const WF x0, const WF dx, const int n, const GM gmm[], const int nGM)
+int main (int argc, char *argv[])
 {
-   WF gk[MAX_GM][3];
-   WF t= 0, x= x0;
-   //for (int j= 0; j<nGM; j++) {
-   getGK(gk[0], gmm+0);
-   for (int i= 0; i<n; i++)
+   int r= 0;
+   WorkCtx wc;
+   const WorkCtx *pWC= initWC(&wc,NULL,32,2);
+   
+   if (pWC)
    {
-      //for (int j= 0; j<nGM; j++) {
-      const WF xm= x - gk[0][1];
-      t+= p[i]= gk[0][0] * exp(gk[0][2] * xm * xm);
-      x+= dx;
+      genObs((WF*)(pWC->pO), pWC->maxO, pWC->maxM);
+      r= t2(pWC);
+      freeWC(&wc);
    }
-   return(t*dx); // Eulerian integral
-} // uniformSampleGM
-
-void dumpNF (const WF f[], const int n)
-{
-   if (n > 0)
-   {
-      printf("[%d]= %G", n, f[0]);
-      for (int i=1; i<n; i++) { printf(", %G",f[i]); }
-      printf("\n");
-   } else printf("[]\n");
-} // dumpNF
-
-void dumpINZNF (const WF f[], const int n)
-{
-   if (n > 0)
-   {
-      for (int i=1; i<n; i++) { if (0 != f[i]) printf("[%d]= %G\n",i,f[i]); }
-   } else printf("[]\n");
-} // dumpINZNF
-
-void t1 (void)
-{
-   int x[]={1,2,3,4,5}, n= 5;
-   WF f[5]={-1};
-
-   n= normP1NIF(f,x,n);
-   dumpNF(f,n);
-} // t1
-
-#define NP 32
-#define NM 2
-void t2 (void)
-{
-   WF p[NP]={0,};
-   GM gm={1,16,4};
-   WF t= uniformSampleGMM(p, 0,1, 32, &gm, 1);
-   printf("uniformSampleGMM() - t=%G: ", t);
-   dumpINZNF(p,32);
-   {
-      const GM egm[NM]={{0.3,5,1},{0.6,22,16}};
-      GM mgm[NM];
-      WF gk[NM][3];
-      WF e[NP*NM];
-            
-      for (int j=0; j<NM; j++) { mgm[j]= egm[j]; }
-      for (int i=0; i<10; i++)
-      {
-          for (int j=0; j<NM; j++) { getGK(gk[j], mgm+j); }
-          expect(e, gk, NM, p, NP);
-          maximise(mgm, e, NM, NP); 
-          for (int j=0; j<NM; j++) { getGK(gk[j], mgm+j); }
-          printf("i%d : mgm[]=", i);
-          for (int j=0; j<NM; j++) { printf(" {%G, %G, %G}", mgm[j].p, mgm[j].m, mgm[j].sd); }
-          printf("\n");
-      }
-   }
-} // t2
-
-int main (int argc, char *argv[]) { t2(); return(0); }
+   return(r); 
+} // main
 
 #endif
