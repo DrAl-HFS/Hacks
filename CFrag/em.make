@@ -1,6 +1,9 @@
 #!/usr/bin/env make
+# -f ??
 
 .PHONY : default shared
+
+
 
 TARGET := em
 SHR_TARGET := $(TARGET).so
@@ -15,9 +18,9 @@ INCDEF :=
 #-I$(CMN_DIR)
 LIBDEF := -lm
 
-#NOPT += -mfpu=neon
-#NOPT += -mfpu=neon-fp16 -mfp16-format=ieee
-#NOPT += -ffast-math
+#OPT += -mfpu=neon
+#OPT += -mfpu=neon-fp16 -mfp16-format=ieee
+#OPT += -ffast-math
 
 # Full build from source every time $(MAKEFILE)
 $(TARGET) : $(SRC)
@@ -31,4 +34,3 @@ $(SHR_TARGET) : $(SRC)
 default : $(TARGET)
 
 shared : $(SHR_TARGET)
-
