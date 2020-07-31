@@ -28,13 +28,37 @@ WF uniformSampleGMM (WF obs[], const WF x0, const WF dx, const int nObs, const G
 
 void dumpNF (const WF f[], const int n)
 {
+   printf("%G", f[0]);
+   for (int i=1; i<n; i++) { printf(", %G",f[i]); }
+} // dumpNF
+
+void dumpHNF (const WF f[], const int n)
+{
    if (n > 0)
    {
-      printf("[%d]= %G", n, f[0]);
-      for (int i=1; i<n; i++) { printf(", %G",f[i]); }
+      printf("[%d]= ", n);
+      dumpNF(f,n);
       printf("\n");
    } else printf("[]\n");
-} // dumpNF
+} // dumpHNF
+
+void dumpHMNF (const WF f[], const int m, const int n)
+{
+   if ((m > 0) && (n > 0))
+   {
+      printf("[%d,%d]= ", m, n);
+      printf("{");
+      dumpNF(f,n);
+      printf("}");
+      for (int i=1; i<m; i++)
+      {
+         printf(", {");
+         dumpNF(f+i*n,n);
+         printf("}");
+      }
+      printf("\n");
+   } else printf("[]\n");
+} // dumpMNF
 
 void dumpINZNF (const WF f[], const int n)
 {
@@ -57,7 +81,9 @@ void genObs (WF obs[], int nObs, int nM)
 {
    const GM gmm[]={{0.2,6,1},{0.8,20,4}};
    WF t= uniformSampleGMM(obs, 0,1, nObs, gmm, nM);
-   printf("genObs() - t=%G:\n", t);
+   printf("genObs() - model: ");
+   dumpHMNF((void*)gmm, 2,3);
+   printf("Eval t=%G:\n", t);
    dumpINZNF(obs,nObs);
 } // genObs
 
@@ -66,24 +92,24 @@ void genObs (WF obs[], int nObs, int nM)
 int t2 (const WorkCtx *pWC)
 {
    const GM egm[]={{0.3,5,1},{0.6,22,16}};
-   //GM mgm[MAX_GM];
-   WF gk[MAX_GM][3];
-   //WF e[MAX_OBS*MAX_GM];
    int nM= MIN(pWC->maxM, MAX_GM);
    int nO= MIN(pWC->maxO, MAX_OBS);
-   
+
    for (int j=0; j<nM; j++) { pWC->pR[j]= egm[j]; }
-   
-   for (int j=0; j<nM; j++) { getGK(gk[j], pWC->pR+j); } // pWC->pGK+3*j
+
+   for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
    for (int i=0; i<10; i++)
    {
-       expect(pWC->pE, gk, nM, pWC->pO, nO);
-       maximise(pWC->pR, pWC->pE, nM, nO);
-       
-       for (int j=0; j<nM; j++) { getGK(gk[j], pWC->pR+j); }
-       printf("i%d : mgm[]=", i);
-       for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
-       printf("\n");
+#if 0
+      em(pWC,pWC->pGK,nM,pWC->pO,nO);
+#else
+      expect(pWC->pE, pWC->pGK, nM, pWC->pO, nO);
+      maximise(pWC->pR, pWC->pE, nM, nO);
+#endif
+      for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
+      printf("i%d : mgm[]=", i);
+      for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
+      printf("\n");
    }
    return(0);
 } // t2
