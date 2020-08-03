@@ -27,7 +27,7 @@ typedef struct
 /**/
 
 // Float vector functions (mostly scalar reductions)
-//WF sumNF (const WF x[], const int n) { WF t= (n>0)?x[0]:0; for (int i=1; i<n; i++) { t+= x[i]; } return(t); }
+WF sumNF (const WF x[], const int n) { WF t= (n>0)?x[0]:0; for (int i=1; i<n; i++) { t+= x[i]; } return(t); }
 //WF dotNF (const WF x[], const WF y[], const int n) { WF t= (n>0)?x[0]*y[0]:0; for (int i=1; i<n; i++) { t+= x[i] * y[i]; } return(t); }
 
 WF sumStrideNF (const WF w[], const int s, const int n) { WF t= (n>0)?w[0]:0; for (int i=1; i<n; i++) { t+= w[i*s]; } return(t); }
@@ -42,8 +42,18 @@ WF sumISSDStrideNF (const WF w[], const int s, const int n, const WF x0)
    return(t);
 } // sumISSDStrideNF
 
+void setNM2 (M2 m[], const int n, const WF x)
+{  //memset(pWC, 0, sizeof(M2));
+   for (int i=0; i<n; i++)
+   {
+      m[i].m[0]= x;
+      m[i].m[1]= x;
+      m[i].m[2]= x;
+   }
+} // setNM2
+
 // Accumulate parallel sets of individually weighted moments of constant x
-void accumM2NF (M2 m[], const WF w[], const WF x, const int n)
+void accumNM2 (M2 m[], const WF w[], const WF x, const int n)
 {
    WF x2= x * x;
    for (int i=0; i<n; i++)
@@ -52,7 +62,7 @@ void accumM2NF (M2 m[], const WF w[], const WF x, const int n)
       m[i].m[1]+= x * w[i];
       m[i].m[2]+= x2 * w[i];
    }
-} // accumM2NF
+} // accumNM2
 
 void scaleNF (WF r[], const WF x[], const int n, const WF k) { for (int i=0; i<n; i++) { r[i]= x[i] * k; } }
 
@@ -103,12 +113,26 @@ WF evalNGK (WF p[], const WF x, const GK gk[], const int n) // gk=[kP,M,kV]
    return(t);
 } // evalGK
 
+int findPeaks (int r[], const int maxR, const WF f[], const int nF)
+{
+   int nR= 0;
+   for (int i=1; i<(nF-1); i++)
+   {
+      if ((f[i] > f[i-1]) && (f[i] > f[i+1]))
+      { 
+         if (nR < maxR) { r[nR]= i; }
+         nR++; 
+      }
+   }
+   return(nR);
+} // findPeaks
 
 /**/
 
 // All-in-one EM pass with minimal memory usage
 int em (const WorkCtx *pC, const GK gk[], const int nGK, const WF pmf[], const int nPMF)
 {
+   setNM2(pC->pM2, nGK, 0);
    for (int i= 0; i<nPMF; i++)
    {
       WF s= evalNGK(pC->pE, i, gk, nGK);
@@ -116,7 +140,7 @@ int em (const WorkCtx *pC, const GK gk[], const int nGK, const WF pmf[], const i
       {  // Compute new partial probabilities weighted by observations
          scaleNF(pC->pE, pC->pE, nGK, pmf[i] / s);
          // Accumulate as moments of order 0,1,2
-         accumM2NF(pC->pM2, pC->pE, i, nGK);
+         accumNM2(pC->pM2, pC->pE, i, nGK);
       }
    }
    // Convert moments to Gaussian model descriptors

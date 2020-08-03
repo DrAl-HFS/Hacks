@@ -89,24 +89,68 @@ void genObs (WF obs[], int nObs, int nM)
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
+int setGM (GM *pGM, const WF f[], const int l, const int m, const int u)
+{
+   if (u > l)
+   {
+      pGM->p=  sumNF(f+l, u-l);
+      pGM->m=  m;
+      pGM->sd= 0.25 * sqrt(u-l);
+      return(1);
+   }
+   return(0);
+} // setGM
+
+int estGM (GM gm[], const int maxM, const WF f[], const int nF)
+{
+   int nM= 0, nK, k[8], l=0, u=nF-1;
+
+   nK= findPeaks(k, 8, f ,nF);
+   if ((nK > 0) && (maxM > 0))
+   {
+      int i, m= MIN(nK, maxM)-1;
+      for (i=0; i<m; i++)
+      {
+         u= (k[i] + k[i+1]) / 2;
+         nM+= setGM(gm+nM, f, l, k[i], u);
+         l= u;
+      }
+      nM+= setGM(gm+nM, f, l, k[i], nF-1);
+      {
+         WF rt=0, t=0;
+         for (int j=0; j<nM; j++) { t+= gm[j].p; }
+         if (t > 0) { rt= 1.0 / t; }
+         for (int j=0; j<nM; j++) { gm[j].p*= rt; }
+      }
+   }
+   
+   return(nM);
+} // estGM
+
+
 int t2 (const WorkCtx *pWC)
 {
    const GM egm[]={{0.3,5,1},{0.6,22,16}};
    int nM= MIN(pWC->maxM, MAX_GM);
    int nO= MIN(pWC->maxO, MAX_OBS);
 
-   for (int j=0; j<nM; j++) { pWC->pR[j]= egm[j]; }
+   nM= estGM(pWC->pR,pWC->maxM, pWC->pO, pWC->maxO);
+   printf("estGM() - n=%d : ",nM);
+   for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
+   printf("\n");
+   //for (int j=0; j<nM; j++) { pWC->pR[j]= egm[j]; }
 
-   for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
+   //for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
    for (int i=0; i<10; i++)
    {
-#if 0
+      for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
+#if 1
       em(pWC,pWC->pGK,nM,pWC->pO,nO);
 #else
       expect(pWC->pE, pWC->pGK, nM, pWC->pO, nO);
       maximise(pWC->pR, pWC->pE, nM, nO);
 #endif
-      for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
+      //for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
       printf("i%d : mgm[]=", i);
       for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
       printf("\n");
