@@ -1,34 +1,22 @@
 // em.c - Simple 1D Expectation Maximisation for distribution modelling.
 // https://github.com/DrAl-HFS/Hacks.git (GPL3 licence)
-// (c) Project Contributors July 2020
+// (c) Project Contributors July-August 2020
 
-#include <math.h>
 #include <stdlib.h>
 
-/**/
+#include "em.h"
 
-typedef double WF; // Wide float type
-typedef struct s_GM { WF p,m,sd; } GM; // Gaussian (mixture) Model descriptor
-typedef struct s_GK { WF k[3]; } GK;   // GMM coefficients for efficient evaluation
-typedef struct s_M2 { WF m[3]; } M2;   // Moment sums to order 2
-typedef struct s_MB { union { void *p; size_t w; }; size_t bytes; } MB;
-typedef struct
-{
-   MB mb, ws;   // Total buffer & extra misc workspace
-   GM *pR;  // Result (intermediate)
-   GK *pGK; // Working coefficient
-   const WF *pO; // Observations (input)
-   WF *pE;     // expectation data
-   M2 *pM2;    // Moment accumulation
-   size_t maxM, maxO, maxE; //
-} WorkCtx;
 
-#define MIN(a,b) ((a)<(b)?(a):(b))
+/***/
 
-/**/
+// Float vector functions 
+void diffNF (WF d[], const WF x[], const WF y[], const int n) { for (int i=0; i<n; i++) { d[i]= x[i] - y[i]; } }
+void scaleNF (WF s[], const WF x[], const int n, const WF k) { for (int i=0; i<n; i++) { s[i]= x[i] * k; } }
 
-// Float vector functions (mostly scalar reductions)
+// scalar reductions
 WF sumNF (const WF x[], const int n) { WF t= (n>0)?x[0]:0; for (int i=1; i<n; i++) { t+= x[i]; } return(t); }
+// Summation by sign [-ve,+ve] returns absolute sum
+WF addSplitSumNF (WF ss[2], const WF x[], const int n) { for (int i=0; i<n; i++) { ss[ (x[i] >= 0) ] += x[i]; } return(ss[1] - ss[0]); }
 //WF dotNF (const WF x[], const WF y[], const int n) { WF t= (n>0)?x[0]*y[0]:0; for (int i=1; i<n; i++) { t+= x[i] * y[i]; } return(t); }
 
 WF sumStrideNF (const WF w[], const int s, const int n) { WF t= (n>0)?w[0]:0; for (int i=1; i<n; i++) { t+= w[i*s]; } return(t); }
@@ -43,16 +31,6 @@ WF sumISSDStrideNF (const WF w[], const int s, const int n, const WF x0)
    return(t);
 } // sumISSDStrideNF
 
-void setNM2 (M2 m[], const int n, const WF x)
-{  //memset(pWC, 0, sizeof(M2));
-   for (int i=0; i<n; i++)
-   {
-      m[i].m[0]= x;
-      m[i].m[1]= x;
-      m[i].m[2]= x;
-   }
-} // setNM2
-
 // Accumulate parallel sets of individually weighted moments of constant x
 void accumNM2 (M2 m[], const WF w[], const WF x, const int n)
 {
@@ -65,7 +43,18 @@ void accumNM2 (M2 m[], const WF w[], const WF x, const int n)
    }
 } // accumNM2
 
-void scaleNF (WF r[], const WF x[], const int n, const WF k) { for (int i=0; i<n; i++) { r[i]= x[i] * k; } }
+// zeroNM2 (M2 m[], const size_t n) { memset(m, 0, n * sizeof(M2)); }
+void setNM2 (M2 m[], const int n, const WF x)
+{
+   for (int i=0; i<n; i++)
+   {
+      m[i].m[0]= x;
+      m[i].m[1]= x;
+      m[i].m[2]= x;
+   }
+} // setNM2
+
+/***/
 
 // Gaussian model functions
 const WF K0= 1.0 / sqrt(2 * M_PI);
@@ -174,54 +163,55 @@ int estGM (GM gm[], const int maxM, const WF f[], const int nF)
 /**/
 
 // All-in-one EM pass with minimal memory usage (vulnerable to error where binning is strongly non-uniform)
-int em (const WorkCtx *pC, const GK gk[], const int nGK, const WF pmf[], const int nPMF)
+int em (GM rgm[], const GK gk[], const int nGK, const WorkCtx *pC)
 {
    setNM2(pC->pM2, nGK, 0);
-   for (int i= 0; i<nPMF; i++)
+   for (int i= 0; i < pC->maxO; i++)
    {
       WF s= evalNGK(pC->pE, i, gk, nGK);
       if (s > 0)
       {  // Compute new partial probabilities weighted by observations
-         scaleNF(pC->pE, pC->pE, nGK, pmf[i] / s);
+         scaleNF(pC->pE, pC->pE, nGK, pC->pO[i] / s);
          // Accumulate as moments of order 0,1,2
          accumNM2(pC->pM2, pC->pE, i, nGK);
       }
    }
    // Convert moments to Gaussian model descriptors
-   return setNGM(pC->pR, pC->pM2, nGK);
+   return setNGM(rgm, pC->pM2, nGK);
 } // em
 
 // Separate E,M passes requiring large [nM*nO] buffer for intermediate results
-void expect (WF p[], const GK gk[], const int nGK, const WF pmf[], const int nPMF)
+void expect (WF e[], const GK gk[], const int nGK, const WF pmf[], const int nPMF)
 {
    for (int i= 0; i<nPMF; i++)
    {
       const int j= nGK*i;
-      WF s= evalNGK(p+j, i, gk, nGK);
+      WF s= evalNGK(e+j, i, gk, nGK);
       if (s > 0)
       {  // Compute new partial probabilities weighted by observations
-         scaleNF(p+j, p+j, nGK, pmf[i] / s);
+         scaleNF(e+j, e+j, nGK, pmf[i] / s);
       }
    }
 } // expect
 
-int maximise (GM *pR, const WF p[], const int nGK, const int nPMF) // m0,m1,m2
+int maximise (GM rgm[], const WF e[], const int nGK, const int nPMF)
 {
    int nK= 0;
    for (int i= 0; i<nGK; i++)
    {
-      pR[i].p= sumStrideNF(p+i, nGK, nPMF);
-      if (pR[i].p > 0)
-      {  // Classic 2-pass measurement of mean&variance: robust for arbitrary data
-         const WF rp= 1.0 / pR[i].p;
-         pR[i].m= sumIProdStrideNF(p+i, nGK, nPMF) * rp;
-         pR[i].sd= sqrt(sumISSDStrideNF(p+i, nGK, nPMF, pR[i].m) * rp);
+      rgm[i].p= sumStrideNF(e+i, nGK, nPMF);
+      if (rgm[i].p > 0)
+      {  // Classic 2-pass measurement of mean then variance: robust for arbitrary data
+         const WF rp= 1.0 / rgm[i].p;
+         rgm[i].m= sumIProdStrideNF(e+i, nGK, nPMF) * rp;
+         rgm[i].sd= sqrt(sumISSDStrideNF(e+i, nGK, nPMF, rgm[i].m) * rp);
          nK++;
       }
    }
-   // if (nK < nGK) remove degenerates
    return(nK);
 } // maximise
+
+// TODO: if (nK < nGK) remove degenerates
 
 // int to float vector routines
 WF sumNIF (const int x[], const int n) { WF s= x[0]; for (int i=1; i<n; i++) { s+= x[i]; } return(s); }
@@ -289,19 +279,19 @@ void freeWC (WorkCtx *pWC)
 
 #ifndef LIB_TARGET
 
-#include "emTest.c"
+#include "emTest.h"
 
 int main (int argc, char *argv[])
 {
-   int r= 0;
+   int verbose=1, r= 0;
    WorkCtx wc={0,};
    const WorkCtx *pWC= initWC(&wc,NULL,32,2,0);
 
    if (pWC)
    {
       const GM gmm[2]={{0.2,6,1},{0.8,20,4}};
-      genObs((WF*)(pWC->pO), pWC->maxO, gmm, 2);
-      r= t2(pWC);
+      genObs((WF*)(pWC->pO), pWC->maxO, gmm, 2, verbose);
+      r= t2(pWC,10,verbose);
       freeWC(&wc);
    }
    return(r);

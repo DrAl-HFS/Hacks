@@ -1,8 +1,9 @@
 // emTest.c - Simple EM test code.
 // https://github.com/DrAl-HFS/Hacks.git (GPL3 licence)
-// (c) Project Contributors July 2020
+// (c) Project Contributors July-August 2020
 
-#include "stdio.h"
+#include <stdio.h>
+#include "emTest.h"
 
 WF uniformSampleGK (WF obs[], const WF x0, const WF dx, const int nObs, const GK gk[], const int nGM)
 {
@@ -73,7 +74,7 @@ void t1 (void)
 } // t1
 
 #define MAX_GEN_GK 8
-int genObs (WF obs[], int nObs, const GM gmm[], int nM)
+int genObs (WF obs[], int nObs, const GM gmm[], int nM, int verbose)
 {
    GK gk[MAX_GEN_GK];
    
@@ -81,32 +82,79 @@ int genObs (WF obs[], int nObs, const GM gmm[], int nM)
    getNGK(gk, gmm, nM);
       
    WF t= uniformSampleGK(obs, 0,1, nObs, gk, nM);
-   printf("genObs() - synth");
-   dumpHMNF((void*)gmm, nM,3);
-   printf("Eval t=%G:\n", t);
-   dumpINZNF(obs,nObs);
+   if (verbose > 0)
+   {
+      printf("genObs() - synth");
+      dumpHMNF((void*)gmm, nM,3);
+      if (verbose > 1)
+      {
+         printf("Eval t=%G:\n", t);
+         dumpINZNF(obs,nObs);
+      }
+   }
    return(nM);
 } // genObs
 
 
-int t2 (const WorkCtx *pWC)
+int t2 (const WorkCtx *pWC, const int nP, int verbose)
 {
-   int nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO);
-
-   printf("estGM");
-   dumpHMNF((void*)(pWC->pR), nM,3);
-
-   for (int i=0; i<10; i++)
+   GM *pR= pWC->pR;
+   int nM, aR=0, dR=0, nR=0;
+   size_t bR;
+   
+   nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO);
+   if (verbose > 0)
+   {
+      printf("estGM");
+      dumpHMNF((void*)(pWC->pR), nM, GM_NK);
+   }
+   
+   bR= nM * nP * 2 * sizeof(GM);
+   if (pWC->ws.bytes >= bR)
+   {
+      pR= pWC->ws.p;
+      dR= nM;
+   }
+   for (int i=0; i<nP; i++)
    {
       getNGK(pWC->pGK, pWC->pR, nM);
-#if 1
-      em(pWC,pWC->pGK,nM,pWC->pO,pWC->maxO);
-#else
       expect(pWC->pE, pWC->pGK, nM, pWC->pO, pWC->maxO);
-      maximise(pWC->pR, pWC->pE, nM, pWC->maxO);
-#endif
-      printf("I%02d : mgm=", i);
-      dumpHMNF((void*)(pWC->pR), nM,3);
+      maximise(pR+aR, pWC->pE, nM, pWC->maxO);
+      if (verbose > 1)
+      {
+         printf("I%02d : mgm=", i);
+         dumpHMNF((void*)(pR+aR), nM, GM_NK);
+      }
+      aR+= dR;
+   }
+   nR= aR - dR;
+   for (int i=0; i<nP; i++)
+   {
+      getNGK(pWC->pGK, pWC->pR, nM);
+      em(pR+aR,pWC->pGK,nM,pWC);
+      if (verbose > 1)
+      {
+         printf("I%02d : mgm=", i);
+         dumpHMNF((void*)(pR+aR), nM, GM_NK);
+      }
+      aR+= dR;
+   }
+   if (nR > 0)
+   { // compare
+      int nF= nP*nM*GM_NK;
+      WF sad, ss[2]={0,0};
+      diffNF(pWC->pE, (void*)pR, (void*)(pR+nR), nF); // HACK! reuse of expectation buffer
+      sad= addSplitSumNF(ss, pWC->pE, nF);
+      if (verbose > 0)
+      {
+         if (1 == verbose)
+         {
+            printf("E+M [%d] : ", nP-1); dumpHMNF((void*)(pR+nR), nM, GM_NK);
+            printf("EM [%d] : ", nP-1); dumpHMNF((void*)(pR+aR-dR), nM, GM_NK);
+         }
+         printf("SS=[%G,%G], SAD=%G\n",ss[0],ss[1],sad);
+      }
+      return(sad < 1E-6);
    }
    return(0);
 } // t2
