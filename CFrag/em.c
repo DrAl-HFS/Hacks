@@ -11,16 +11,16 @@ typedef double WF; // Wide float type
 typedef struct s_GM { WF p,m,sd; } GM; // Gaussian (mixture) Model descriptor
 typedef struct s_GK { WF k[3]; } GK;   // GMM coefficients for efficient evaluation
 typedef struct s_M2 { WF m[3]; } M2;   // Moment sums to order 2
-typedef struct s_MB { void *p; size_t bytes; } MB;
+typedef struct s_MB { union { void *p; size_t w; }; size_t bytes; } MB;
 typedef struct
 {
-   MB mb;   // Buffer
+   MB mb, ws;   // Total buffer & extra misc workspace
    GM *pR;  // Result (intermediate)
    GK *pGK; // Working coefficient
    const WF *pO; // Observations (input)
    WF *pE;     // expectation data
    M2 *pM2;    // Moment accumulation
-   int maxM, maxO; //
+   size_t maxM, maxO, maxE; //
 } WorkCtx;
 
 
@@ -197,31 +197,38 @@ size_t alignPO2 (const size_t s, const size_t b)
    return((s+a) & ~a);
 } // alignPO2
 
-const WorkCtx * initWC (WorkCtx *pWC, const WF *pO, const size_t maxO, const size_t maxM)
+const WorkCtx * initWC (WorkCtx *pWC, const WF *pO, const size_t maxO, const size_t maxM, size_t maxE)
 {
-   int nE= maxO * maxM;
-   pWC->mb.bytes= nE * sizeof(WF) + maxM * (sizeof(GM) + sizeof(GK) + sizeof(M2));
-   if (NULL == pO) { pWC->mb.bytes+= sizeof(WF) * maxO; }
-   pWC->mb.bytes= alignPO2(pWC->mb.bytes, 12); // round up 4K
-   pWC->mb.p= malloc(pWC->mb.bytes);
-   if (pWC->mb.p)
+   if ((maxO > 0) && (maxM > 0) && (NULL == pWC->mb.p))
    {
-      if (NULL == pO)
+      if (0 == maxE) { maxE= maxO * maxM; }
+      pWC->mb.bytes= maxE * sizeof(WF) + maxM * (sizeof(GM) + sizeof(GK) + sizeof(M2));
+      if (NULL == pO) { pWC->mb.bytes+= sizeof(WF) * maxO; }
+      pWC->mb.bytes= alignPO2(pWC->mb.bytes, 12); // round up 4K
+      pWC->mb.p= malloc(pWC->mb.bytes);
+      if (pWC->mb.p)
       {
-         pWC->pO= pWC->mb.p;
-         pWC->pR= (void*)(pWC->pO + maxO);
+         if (NULL == pO)
+         {  // Test mode, observations to be synthesised
+            pWC->pO= pWC->mb.p;
+            pWC->pR= (void*)(pWC->pO + maxO);
+         }
+         else
+         {
+            pWC->pO= pO;
+            pWC->pR= pWC->mb.p;
+         }
+         pWC->pGK= (void*)(pWC->pR + maxM);
+         pWC->pM2= (void*)(pWC->pGK + maxM);
+         pWC->pE=  (void*)(pWC->pM2 + maxM);
+         pWC->maxM= maxM;
+         pWC->maxO= maxO;
+         pWC->maxE= maxE;
+         // Set extra workspace (for whatever..)
+         pWC->ws.p= pWC->pE + maxE;
+         pWC->ws.bytes= pWC->mb.bytes - (pWC->ws.w - pWC->mb.w);
+         return(pWC);
       }
-      else
-      {
-         pWC->pO= pO;
-         pWC->pR= pWC->mb.p;
-      }
-      pWC->pGK= (void*)(pWC->pR + maxM);
-      pWC->pE=  (void*)(pWC->pGK + maxM);
-      pWC->pM2= (void*)(pWC->pE + nE);
-      pWC->maxM= maxM;
-      pWC->maxO= maxO;
-      return(pWC);
    }
    return(NULL);
 } // initWC
@@ -243,12 +250,13 @@ void freeWC (WorkCtx *pWC)
 int main (int argc, char *argv[])
 {
    int r= 0;
-   WorkCtx wc;
-   const WorkCtx *pWC= initWC(&wc,NULL,32,2);
+   WorkCtx wc={0,};
+   const WorkCtx *pWC= initWC(&wc,NULL,32,2,0);
 
    if (pWC)
    {
-      genObs((WF*)(pWC->pO), pWC->maxO, pWC->maxM);
+      const GM gmm[2]={{0.2,6,1},{0.8,20,4}};
+      genObs((WF*)(pWC->pO), pWC->maxO, gmm, 2);
       r= t2(pWC);
       freeWC(&wc);
    }

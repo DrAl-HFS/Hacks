@@ -4,21 +4,16 @@
 
 #include "stdio.h"
 
-#define MAX_OBS 32
-#define MAX_GM 2
-
-WF uniformSampleGMM (WF obs[], const WF x0, const WF dx, const int nObs, const GM gmm[], const int nGM)
+WF uniformSampleGK (WF obs[], const WF x0, const WF dx, const int nObs, const GK gk[], const int nGM)
 {
-   WF gk[MAX_GM][3];
    WF t= 0, x= x0;
-   for (int j= 0; j<nGM; j++) { getGK(gk[j], gmm+j); }
    for (int i= 0; i<nObs; i++)
    {
       WF ox= 0;
       for (int j= 0; j<nGM; j++)
       {
-         const WF xm= x - gk[j][1];
-         ox+= gk[j][0] * exp(gk[j][2] * xm * xm);
+         const WF xm= x - gk[j].k[1];
+         ox+= gk[j].k[0] * exp(gk[j].k[2] * xm * xm);
       }
       t+= obs[i]= ox;
       x+= dx;
@@ -28,7 +23,7 @@ WF uniformSampleGMM (WF obs[], const WF x0, const WF dx, const int nObs, const G
 
 void dumpNF (const WF f[], const int n)
 {
-   printf("%G", f[0]);
+   if (n > 0) printf("%G", f[0]);
    for (int i=1; i<n; i++) { printf(", %G",f[i]); }
 } // dumpNF
 
@@ -64,7 +59,7 @@ void dumpINZNF (const WF f[], const int n)
 {
    if (n > 0)
    {
-      for (int i=1; i<n; i++) { if (0 != f[i]) printf("[%d]= %G\n",i,f[i]); }
+      for (int i=0; i<n; i++) { if (0 != f[i]) printf("[%d]= %G\n",i,f[i]); }
    } else printf("[]\n");
 } // dumpINZNF
 
@@ -77,14 +72,19 @@ void t1 (void)
    dumpNF(f,n);
 } // t1
 
-void genObs (WF obs[], int nObs, int nM)
+#define MAX_GEN_GK 8
+int genObs (WF obs[], int nObs, const GM gmm[], int nM)
 {
-   const GM gmm[]={{0.2,6,1},{0.8,20,4}};
-   WF t= uniformSampleGMM(obs, 0,1, nObs, gmm, nM);
-   printf("genObs() - model: ");
-   dumpHMNF((void*)gmm, 2,3);
+   GK gk[MAX_GEN_GK];
+   
+   if (nM > MAX_GEN_GK) { nM= MAX_GEN_GK; }
+   for (int i= 0; i<nM; i++) { getGK(gk[i].k, gmm+i); }
+   WF t= uniformSampleGK(obs, 0,1, nObs, gk, nM);
+   printf("genObs() - synth");
+   dumpHMNF((void*)gmm, nM,3);
    printf("Eval t=%G:\n", t);
    dumpINZNF(obs,nObs);
+   return(nM);
 } // genObs
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
@@ -130,14 +130,11 @@ int estGM (GM gm[], const int maxM, const WF f[], const int nF)
 
 int t2 (const WorkCtx *pWC)
 {
-   const GM egm[]={{0.3,5,1},{0.6,22,16}};
-   int nM= MIN(pWC->maxM, MAX_GM);
-   int nO= MIN(pWC->maxO, MAX_OBS);
-
-   nM= estGM(pWC->pR,pWC->maxM, pWC->pO, pWC->maxO);
-   printf("estGM() - n=%d : ",nM);
-   for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
-   printf("\n");
+   int nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO);
+   printf("estGM");
+   dumpHMNF((void*)(pWC->pR), nM,3);
+   //for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
+   //printf("\n");
    //for (int j=0; j<nM; j++) { pWC->pR[j]= egm[j]; }
 
    //for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
@@ -145,15 +142,13 @@ int t2 (const WorkCtx *pWC)
    {
       for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
 #if 1
-      em(pWC,pWC->pGK,nM,pWC->pO,nO);
+      em(pWC,pWC->pGK,nM,pWC->pO,pWC->maxO);
 #else
-      expect(pWC->pE, pWC->pGK, nM, pWC->pO, nO);
-      maximise(pWC->pR, pWC->pE, nM, nO);
+      expect(pWC->pE, pWC->pGK, nM, pWC->pO, pWC->maxO);
+      maximise(pWC->pR, pWC->pE, nM, pWC->maxO);
 #endif
-      //for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
-      printf("i%d : mgm[]=", i);
-      for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
-      printf("\n");
+      printf("I%02d : mgm=", i);
+      dumpHMNF((void*)(pWC->pR), nM,3);
    }
    return(0);
 } // t2
