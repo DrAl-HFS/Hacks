@@ -23,6 +23,7 @@ typedef struct
    size_t maxM, maxO, maxE; //
 } WorkCtx;
 
+#define MIN(a,b) ((a)<(b)?(a):(b))
 
 /**/
 
@@ -69,11 +70,14 @@ void scaleNF (WF r[], const WF x[], const int n, const WF k) { for (int i=0; i<n
 // Gaussian model functions
 const WF K0= 1.0 / sqrt(2 * M_PI);
 // Convert model descriptor to coefficients for efficient evaluation
-void getGK (WF k[3], const GM *pGM)
+void getNGK (GK gk[], const GM gm[], const int n)
 {  // assume ((pGM->p > EPS) && (pGM->sd > EPS))
-   k[0]= pGM->p * K0 / pGM->sd;
-   k[1]= pGM->m;
-   k[2]= -1 / (2 * pGM->sd * pGM->sd);
+   for (int i=0; i<n; i++)
+   {
+      gk[i].k[0]= gm[i].p * K0 / gm[i].sd;
+      gk[i].k[1]= gm[i].m;
+      gk[i].k[2]= -1 / (2 * gm[i].sd * gm[i].sd);
+   }
 } // getGK
 
 // Convert moments to model descriptors
@@ -113,6 +117,8 @@ WF evalNGK (WF p[], const WF x, const GK gk[], const int n) // gk=[kP,M,kV]
    return(t);
 } // evalGK
 
+/* Initial Pattern Scanning */
+
 int findPeaks (int r[], const int maxR, const WF f[], const int nF)
 {
    int nR= 0;
@@ -127,9 +133,47 @@ int findPeaks (int r[], const int maxR, const WF f[], const int nF)
    return(nR);
 } // findPeaks
 
+int lmuSetGM (GM *pGM, const WF f[], const int l, const int m, const int u)
+{
+   if ((u > m) && (m > l))
+   {
+      pGM->p=  sumNF(f+l, u-l);
+      pGM->m=  m;
+      pGM->sd= 0.25 * sqrt(u-l);
+      return(1);
+   }
+   return(0);
+} // lmuSetGM
+
+int estGM (GM gm[], const int maxM, const WF f[], const int nF)
+{
+   int nM= 0, nK, k[8], l=0, u=nF-1;
+
+   nK= findPeaks(k, 8, f ,nF);
+   if ((nK > 0) && (maxM > 0))
+   {
+      int i, m= MIN(nK, maxM)-1;
+      for (i=0; i<m; i++)
+      {
+         u= (k[i] + k[i+1]) / 2;
+         nM+= lmuSetGM(gm+nM, f, l, k[i], u);
+         l= u;
+      }
+      nM+= lmuSetGM(gm+nM, f, l, k[i], nF-1);
+      {
+         WF rt=0, t=0;
+         for (int j=0; j<nM; j++) { t+= gm[j].p; }
+         if (t > 0) { rt= 1.0 / t; }
+         for (int j=0; j<nM; j++) { gm[j].p*= rt; }
+      }
+   }
+   
+   return(nM);
+} // estGM
+
 /**/
 
-// All-in-one EM pass with minimal memory usage
+// All-in-one EM pass with minimal memory usage (vulnerable to error where binning is strongly non-uniform)
 int em (const WorkCtx *pC, const GK gk[], const int nGK, const WF pmf[], const int nPMF)
 {
    setNM2(pC->pM2, nGK, 0);
@@ -147,7 +191,7 @@ int em (const WorkCtx *pC, const GK gk[], const int nGK, const WF pmf[], const i
    return setNGM(pC->pR, pC->pM2, nGK);
 } // em
 
-// Separate E,M passes requiring large buffer for intermediate results
+// Separate E,M passes requiring large [nM*nO] buffer for intermediate results
 void expect (WF p[], const GK gk[], const int nGK, const WF pmf[], const int nPMF)
 {
    for (int i= 0; i<nPMF; i++)
@@ -168,7 +212,7 @@ int maximise (GM *pR, const WF p[], const int nGK, const int nPMF) // m0,m1,m2
    {
       pR[i].p= sumStrideNF(p+i, nGK, nPMF);
       if (pR[i].p > 0)
-      {  // Classic 2-pass measurement of mean&variance
+      {  // Classic 2-pass measurement of mean&variance: robust for arbitrary data
          const WF rp= 1.0 / pR[i].p;
          pR[i].m= sumIProdStrideNF(p+i, nGK, nPMF) * rp;
          pR[i].sd= sqrt(sumISSDStrideNF(p+i, nGK, nPMF, pR[i].m) * rp);

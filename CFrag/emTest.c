@@ -78,7 +78,8 @@ int genObs (WF obs[], int nObs, const GM gmm[], int nM)
    GK gk[MAX_GEN_GK];
    
    if (nM > MAX_GEN_GK) { nM= MAX_GEN_GK; }
-   for (int i= 0; i<nM; i++) { getGK(gk[i].k, gmm+i); }
+   getNGK(gk, gmm, nM);
+      
    WF t= uniformSampleGK(obs, 0,1, nObs, gk, nM);
    printf("genObs() - synth");
    dumpHMNF((void*)gmm, nM,3);
@@ -87,60 +88,17 @@ int genObs (WF obs[], int nObs, const GM gmm[], int nM)
    return(nM);
 } // genObs
 
-#define MIN(a,b) ((a)<(b)?(a):(b))
-
-int setGM (GM *pGM, const WF f[], const int l, const int m, const int u)
-{
-   if (u > l)
-   {
-      pGM->p=  sumNF(f+l, u-l);
-      pGM->m=  m;
-      pGM->sd= 0.25 * sqrt(u-l);
-      return(1);
-   }
-   return(0);
-} // setGM
-
-int estGM (GM gm[], const int maxM, const WF f[], const int nF)
-{
-   int nM= 0, nK, k[8], l=0, u=nF-1;
-
-   nK= findPeaks(k, 8, f ,nF);
-   if ((nK > 0) && (maxM > 0))
-   {
-      int i, m= MIN(nK, maxM)-1;
-      for (i=0; i<m; i++)
-      {
-         u= (k[i] + k[i+1]) / 2;
-         nM+= setGM(gm+nM, f, l, k[i], u);
-         l= u;
-      }
-      nM+= setGM(gm+nM, f, l, k[i], nF-1);
-      {
-         WF rt=0, t=0;
-         for (int j=0; j<nM; j++) { t+= gm[j].p; }
-         if (t > 0) { rt= 1.0 / t; }
-         for (int j=0; j<nM; j++) { gm[j].p*= rt; }
-      }
-   }
-   
-   return(nM);
-} // estGM
-
 
 int t2 (const WorkCtx *pWC)
 {
    int nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO);
+
    printf("estGM");
    dumpHMNF((void*)(pWC->pR), nM,3);
-   //for (int j=0; j<nM; j++) { printf(" {%G, %G, %G}", pWC->pR[j].p, pWC->pR[j].m, pWC->pR[j].sd); }
-   //printf("\n");
-   //for (int j=0; j<nM; j++) { pWC->pR[j]= egm[j]; }
 
-   //for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
    for (int i=0; i<10; i++)
    {
-      for (int j=0; j<nM; j++) { getGK(pWC->pGK[j].k, pWC->pR+j); } // pWC->pGK+3*j
+      getNGK(pWC->pGK, pWC->pR, nM);
 #if 1
       em(pWC,pWC->pGK,nM,pWC->pO,pWC->maxO);
 #else
