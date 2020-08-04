@@ -12,6 +12,8 @@
 #define GM_NK 3
 #define GM_NM 3
 
+//typedef int bool;
+typedef unsigned char U8;
 typedef double WF; // Wide float type
 typedef struct s_GM { WF p,m,sd; } GM; // Gaussian (mixture) Model descriptor
 typedef struct s_GK { WF k[GM_NK]; } GK;   // GMM coefficients for efficient evaluation
@@ -43,6 +45,7 @@ extern int normP1NIF (WF r[], const int x[], const int n);
 // typical float vector functions
 extern void diffNF (WF d[], const WF x[], const WF y[], const int n);
 extern void scaleNF (WF s[], const WF x[], const int n, const WF k);
+extern void prodNF (WF r[], const WF x[], const WF y[], const int n);
 
 // float vector -> scalar reductions
 extern WF sumNF (const WF x[], const int n);
@@ -57,5 +60,7 @@ extern int em (GM rgm[], const GK gk[], const int nGK, const WorkCtx *pC);
 // Separate E,M passes requiring large [nM*nO] buffer for intermediate results
 extern void expect (WF e[], const GK gk[], const int nGK, const WF pmf[], const int nPMF);
 extern int maximise (GM rgm[], const WF e[], const int nGK, const int nPMF);
+
+extern int validMB (const MB *pMB, const size_t bytes);
 
 #endif // EM_H

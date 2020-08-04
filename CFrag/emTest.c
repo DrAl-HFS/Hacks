@@ -2,7 +2,6 @@
 // https://github.com/DrAl-HFS/Hacks.git (GPL3 licence)
 // (c) Project Contributors July-August 2020
 
-#include <stdio.h>
 #include "emTest.h"
 
 WF uniformSampleGK (WF obs[], const WF x0, const WF dx, const int nObs, const GK gk[], const int nGM)
@@ -20,7 +19,37 @@ WF uniformSampleGK (WF obs[], const WF x0, const WF dx, const int nObs, const GK
       x+= dx;
    }
    return(t*dx); // Eulerian integral
-} // uniformSampleGM
+} // uniformSampleGK
+
+size_t getNoise (void *p, size_t bytes)
+{
+   size_t r= 0;
+   if (p && bytes)
+   {
+      FILE *fd= fopen("/dev/random","r");
+      if (fd)
+      {
+         r= fread(p, 1, bytes, fd);
+         fclose(fd);
+      }
+   }
+   return(r);
+} // getNoise
+
+void dumpNXB (const void *p, const int n)
+{
+   for (int i=0; i<n; i++) { printf("%02X", ((char*)p)[i]); }
+} // dumpNXB
+
+void dumpHNXB (const void *p, const int n)
+{
+   if (p && (n > 0))
+   {
+      printf("[%d]= ", n);
+      dumpNXB(p,n);
+      printf("\n");
+   } else printf("[]\n");
+} // dumpHNXB
 
 void dumpNF (const WF f[], const int n)
 {
@@ -80,7 +109,7 @@ int genObs (WF obs[], int nObs, const GM gmm[], int nM, int verbose)
    
    if (nM > MAX_GEN_GK) { nM= MAX_GEN_GK; }
    getNGK(gk, gmm, nM);
-      
+
    WF t= uniformSampleGK(obs, 0,1, nObs, gk, nM);
    if (verbose > 0)
    {
@@ -98,16 +127,14 @@ int genObs (WF obs[], int nObs, const GM gmm[], int nM, int verbose)
 
 int t2 (const WorkCtx *pWC, const int nP, int verbose)
 {
+   WF ss[2]={0,0};
+   WF sad=-1, resid=-1;
    GM *pR= pWC->pR;
    int nM, aR=0, dR=0, nR=0;
    size_t bR;
    
    nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO);
-   if (verbose > 0)
-   {
-      printf("estGM");
-      dumpHMNF((void*)(pWC->pR), nM, GM_NK);
-   }
+   if (verbose > 0) { printf("estGM"); dumpHMNF((void*)(pWC->pR), nM, GM_NK); }
    
    bR= nM * nP * 2 * sizeof(GM);
    if (pWC->ws.bytes >= bR)
@@ -120,11 +147,7 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
       getNGK(pWC->pGK, pWC->pR, nM);
       expect(pWC->pE, pWC->pGK, nM, pWC->pO, pWC->maxO);
       maximise(pR+aR, pWC->pE, nM, pWC->maxO);
-      if (verbose > 1)
-      {
-         printf("I%02d : mgm=", i);
-         dumpHMNF((void*)(pR+aR), nM, GM_NK);
-      }
+      if (verbose > 1) { printf("I%02d : mgm=", i); dumpHMNF((void*)(pR+aR), nM, GM_NK); }
       aR+= dR;
    }
    nR= aR - dR;
@@ -132,17 +155,13 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
    {
       getNGK(pWC->pGK, pWC->pR, nM);
       em(pR+aR,pWC->pGK,nM,pWC);
-      if (verbose > 1)
-      {
-         printf("I%02d : mgm=", i);
-         dumpHMNF((void*)(pR+aR), nM, GM_NK);
-      }
+      if (verbose > 1) { printf("I%02d : mgm=", i); dumpHMNF((void*)(pR+aR), nM, GM_NK); }
       aR+= dR;
    }
    if (nR > 0)
    { // compare
       int nF= nP*nM*GM_NK;
-      WF sad, ss[2]={0,0};
+      WF ss[2]={0,0};
       diffNF(pWC->pE, (void*)pR, (void*)(pR+nR), nF); // HACK! reuse of expectation buffer
       sad= addSplitSumNF(ss, pWC->pE, nF);
       if (verbose > 0)
@@ -154,7 +173,12 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
          }
          printf("SS=[%G,%G], SAD=%G\n",ss[0],ss[1],sad);
       }
-      return(sad < 1E-6);
+      pR+= nR;
    }
-   return(0);
+   genObs(pWC->pE, pWC->maxO, pR, nM, 0); // HACK! reuse of expectation buffer
+   diffNF(pWC->pE, pWC->pO, pWC->pE, pWC->maxO);
+   ss[0]= ss[1]= 0;
+   resid= addSplitSumNF(ss, pWC->pE, pWC->maxO);
+   printf("resid=%G [%G, %G]\n",resid, ss[0], ss[1]);
+   return(sad < 1E-6);
 } // t2

@@ -9,9 +9,12 @@
 
 /***/
 
+int validMB (const MB *pMB, const size_t bytes) { return (pMB && pMB->p && (pMB->bytes >= bytes)); }
+
 // Float vector functions 
 void diffNF (WF d[], const WF x[], const WF y[], const int n) { for (int i=0; i<n; i++) { d[i]= x[i] - y[i]; } }
 void scaleNF (WF s[], const WF x[], const int n, const WF k) { for (int i=0; i<n; i++) { s[i]= x[i] * k; } }
+void prodNF (WF r[], const WF x[], const WF y[], const int n) { for (int i=0; i<n; i++) { r[i]= x[i] * y[i]; } }
 
 // scalar reductions
 WF sumNF (const WF x[], const int n) { WF t= (n>0)?x[0]:0; for (int i=1; i<n; i++) { t+= x[i]; } return(t); }
@@ -281,17 +284,51 @@ void freeWC (WorkCtx *pWC)
 
 #include "emTest.h"
 
+void linMapNBF (WF f[], const U8 b[], const int n, const WF lm[2]) 
+{
+   for (int i=0; i<n; i++) { f[i]= lm[0] + b[i] * lm[1]; }
+} // linMapNBF
+
+unsigned long sumU8 (U8 u[], const int n) { unsigned long t= (n>0)?u[0]:0; for (int i=0; i<n; i++) { t+= u[i]; } return(t); }
+
+int getNoiseF (WF f[], const int n, const WF noiseMean, const WF noiseFrac, void *p, int verbose)
+{
+   int r= getNoise(p,n);
+   if (r > 0)
+   {
+      WF lm[2], nm=0;
+      
+      nm= (WF)sumU8(p,r) / r;
+      lm[1]= noiseFrac / (0.5 * 0xFF);
+      lm[0]= noiseMean - 0.5*noiseFrac - 0.475*nm*lm[1];
+      if (verbose > 1) { printf("getNoise() - "); dumpHNXB(p, r); printf("mean= %G\n", nm); }
+      linMapNBF(f, p, r, lm);
+      
+      if (verbose > 1)
+      {
+         WF t, m;
+         t= sumNF(f,r);
+         m= t / r;
+         printf("noise modulation "); dumpHNF(f, r);
+         printf("sum= %G, mean= %G, err= %G\n", t, m, noiseMean-m);
+      }
+   }
+   return(r);
+} // getNoiseF
+
 int main (int argc, char *argv[])
 {
-   int verbose=1, r= 0;
+   int verbose=2, r= 0;
    WorkCtx wc={0,};
    const WorkCtx *pWC= initWC(&wc,NULL,32,2,0);
 
    if (pWC)
    {
       const GM gmm[2]={{0.2,6,1},{0.8,20,4}};
-      genObs((WF*)(pWC->pO), pWC->maxO, gmm, 2, verbose);
-      r= t2(pWC,10,verbose);
+      genObs((WF*)(pWC->pO), pWC->maxO, gmm, 2, verbose); // synthesise
+      r= getNoiseF(pWC->pE, MIN(pWC->ws.bytes,pWC->maxO), 1.0, 1.0/32, pWC->ws.p, verbose);
+      if (r > 0) { prodNF((WF*)(pWC->pO), pWC->pO, pWC->pE, MIN(r, pWC->maxO)); } // modulate
+      r= t2(pWC,10,verbose); // test
       freeWC(&wc);
    }
    return(r);
