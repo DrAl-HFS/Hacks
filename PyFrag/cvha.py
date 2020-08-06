@@ -28,6 +28,21 @@ def ctTest (x):
     n= nrmf(r.ctypes.data_as(POINTER(c_double)), x.ctypes.data_as(POINTER(c_int)), x.size)
     return r, n
 
+def em1DNF (h,nr):
+    eml= CDLL("/home/al/dev/Hacks/CFrag/em.so")
+    emf= eml.em1DNF
+    emf.argtypes= [ POINTER(c_double), c_int, POINTER(c_double), c_int, c_int ]
+    emf.restype= c_int
+    r= numpy.zeros( nr*3, dtype=numpy.float64)
+    #print("em1DNF() - r[", type(r[0]), "h[", type(h[0]) )
+    nr= emf(r.ctypes.data_as(POINTER(c_double)), nr, h.ctypes.data_as(POINTER(c_double)), h.size, 0)
+    lr= []
+    if nr > 0:
+        r= numpy.reshape(r,(-1,3))
+        for i in range(nr):
+            lr.append( tuple(r[i,:]) )
+    return lr
+
 #def ctTest (x):
 #    import ctypes # FQN=tedious...
 #    em= ctypes.CDLL("/home/al/dev/Hacks/CFrag/em.so")
@@ -85,7 +100,7 @@ def cvModelEM (h,nc): # Not producing anything useful so far...
 # No mask provision in this version
 def npHist (dat,mm,nBins,hvl=1000000000):
     #hist= numpy.bincount(datI,minlength=nBins) # integral type only
-    hist,binE= numpy.histogram(dat,bins=nBins,range=mm)
+    hist,binE= numpy.histogram(dat,bins=nBins,range=mm,density=True)
     # print(type(hist), type(hist[0]), hist[0]) = <numpy.int32> / <numpy.float64> when density=True
     i= 0
     n= 0
@@ -103,11 +118,12 @@ def procCV (imBGR8):
     imH8= imHSV8[:,:,0] # 0 ~ 179
     satM8= 0xFF * (imHSV8[:,:,1] > 0x1F).astype(numpy.uint8)
     bh= cvHist(imH8, satM8)
+    return bh
 
 if "__main__" == __name__ :
-    try:
+    if len(sys.argv) > 1:
         imBGR8= cv2.imread(sys.argv[1]) #, cv2.IMREAD_GRAYSCALE)
-    except:
+    else:
         print("Usage:",sys.argv[0],"<image-file>")
         #imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
         #bh= info(imHSV8,None)
@@ -125,8 +141,13 @@ if "__main__" == __name__ :
     mm= ( numpy.min(imH32), numpy.max(imH32) )
     h= npHist(imH32.ravel(),mm,1000,nSh/100)
     print("---")
-    pmf, n= ctTest(h)
-    print(n,pmf)
+    lgm= em1DNF(h,12)
+    print("em1DNF() - ", len(lgm))
+    for m in lgm:
+        print(m)
+    if False:
+        pmf, n= ctTest(h)
+        print(n,pmf)
     if False:
         print("---")
         print("H range:", mm)
