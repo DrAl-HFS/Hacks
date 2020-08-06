@@ -6,6 +6,9 @@
 #define EM_H
 
 #include <math.h>
+#include <string.h> // memcpy
+#include <stdlib.h> // malloc
+#include <stdio.h>
 
 /***/
 
@@ -19,6 +22,7 @@ typedef struct s_GM { WF p,m,sd; } GM; // Gaussian (mixture) Model descriptor
 typedef struct s_GK { WF k[GM_NK]; } GK;   // GMM coefficients for efficient evaluation
 typedef struct s_M2 { WF m[GM_NM]; } M2;   // Moment sums to order 2
 typedef struct s_MB { union { void *p; size_t w; }; size_t bytes; } MB;
+//typedef union u_EMCPD { int w; struct { U8 f; U8 n; U8 pad[2]; }; } EMCPD; // Client Procedure Descriptor???
 
 typedef struct
 {
@@ -36,6 +40,8 @@ typedef struct
 
 // old style hacky macros
 #define MIN(a,b) ((a)<(b)?(a):(b))
+#define SWAP(_t,a,b) { _t t=a; a= b; b= t; }
+#define XSWAP(a,b) { a^= b; b^= a; a^= b; }
 
 // int -> float vector functions
 extern WF sumNIF (const int x[], const int n);
@@ -54,7 +60,7 @@ extern WF addSplitSumNF (WF ss[2], const WF x[], const int n);
 
 
 extern void getNGK (GK gk[], const GM gm[], const int n);
-extern int estGM (GM gm[], const int maxM, const WF f[], const int nF);
+extern int estGM (GM gm[], int *pI, const int maxM, const WF f[], const int nF);
 
 extern int em (GM rgm[], const GK gk[], const int nGK, const WorkCtx *pC);
 // Separate E,M passes requiring large [nM*nO] buffer for intermediate results

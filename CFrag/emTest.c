@@ -133,7 +133,7 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
    int nM, aR=0, dR=0, nR=0;
    size_t bR;
    
-   nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO);
+   nM= estGM(pWC->pR, NULL, pWC->maxM, pWC->pO, pWC->maxO);
    if (verbose > 0) { printf("estGM"); dumpHMNF((void*)(pWC->pR), nM, GM_NK); }
    
    bR= nM * nP * 2 * sizeof(GM);
@@ -142,6 +142,7 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
       pR= pWC->ws.p;
       dR= nM;
    }
+   if (verbose > 1) { printf("--E+M--\n"); }
    for (int i=0; i<nP; i++)
    {
       getNGK(pWC->pGK, pWC->pR, nM);
@@ -151,6 +152,7 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
       aR+= dR;
    }
    nR= aR - dR;
+   if (verbose > 1) { printf("--EM--\nS"); }
    for (int i=0; i<nP; i++)
    {
       getNGK(pWC->pGK, pWC->pR, nM);

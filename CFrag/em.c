@@ -2,8 +2,6 @@
 // https://github.com/DrAl-HFS/Hacks.git (GPL3 licence)
 // (c) Project Contributors July-August 2020
 
-#include <stdlib.h>
-
 #include "em.h"
 
 
@@ -46,8 +44,8 @@ void accumNM2 (M2 m[], const WF w[], const WF x, const int n)
    }
 } // accumNM2
 
-// zeroNM2 (M2 m[], const size_t n) { memset(m, 0, n * sizeof(M2)); }
-void setNM2 (M2 m[], const int n, const WF x)
+void zeroNM2 (M2 m[], const size_t n) { memset(m, 0, n * sizeof(M2)); }
+/*void setNM2 (M2 m[], const int n, const WF x)
 {
    for (int i=0; i<n; i++)
    {
@@ -56,6 +54,7 @@ void setNM2 (M2 m[], const int n, const WF x)
       m[i].m[2]= x;
    }
 } // setNM2
+*/
 
 /***/
 
@@ -125,8 +124,53 @@ int findPeaks (int r[], const int maxR, const WF f[], const int nF)
    return(nR);
 } // findPeaks
 
+WF lerp (WF a, WF b, WF r) { return(a + r * (b-a)); }
+
+// Remove smaller peaks, preserving order
+int trimPeaks (int *pI, int nI, const int nR, const WF f[])
+{  // Flaky magic numbers... TODO: use sort / dist to find n most significant
+   while (nI > nR)
+   {
+      WF r, u, v, vMax, tf;
+      int n= 0;
+      vMax= tf= f[ pI[0] ];
+      for (int i=1; i<nI; i++) 
+      {  // get total and max
+         v= f[ pI[i] ];
+         if (v > vMax) { vMax= v; }
+         tf+= v;
+      }
+      // Estimate suitable threshold
+      u= tf / nI; // lower bound (mean)
+      r= (WF)(nI - nR) / nI; // Fraction to remove, combine with constant for non-linear
+      //r-= 0.5; // assume 50% ~ uniform
+      if (vMax > u) { v= lerp(u, vMax, 1.0/16 * r); } else { v= u; }
+      printf("trimPeaks() - u=%G, vMax=%G, r=%G, t=%G\n", u, vMax, r, v);
+      // Swap down those above threshold
+      for (int i=1; i<nI; i++) 
+      {  // get total and max
+         if (f[ pI[i] ] >= v)
+         {
+            SWAP(int, pI[n], pI[i]);
+            ++n;
+         }
+      }
+      nI= n;
+   } 
+   return(nI);
+} // trimPeaks
+
 int lmuSetGM (GM *pGM, const WF f[], const int l, const int m, const int u)
 {
+   M2 m2={{0,0,0}};
+   for (int i=l; i<u; i++)
+   {
+      m2.m[0]+= f[i]; // x^0=1
+      m2.m[1]+= i * f[i];
+      m2.m[2]+= i*i * f[i];
+   }
+   return setNGM(pGM, &m2,1);
+#if 0
    if ((u > m) && (m > l))
    {
       pGM->p=  sumNF(f+l, u-l);
@@ -135,31 +179,46 @@ int lmuSetGM (GM *pGM, const WF f[], const int l, const int m, const int u)
       return(1);
    }
    return(0);
+#endif
 } // lmuSetGM
 
-int estGM (GM gm[], const int maxM, const WF f[], const int nF)
+int estGM (GM gm[], int *pI, const int maxM, const WF f[], const int nF)
 {
-   int nM= 0, nK, k[8], l=0, u=nF-1;
-
-   nK= findPeaks(k, 8, f ,nF);
-   if ((nK > 0) && (maxM > 0))
+   int nI, maxI=maxM, nM= 0, l=0, u=nF-1;
+   void *p=NULL;
+   
+   if (NULL == pI)
    {
-      int i, m= MIN(nK, maxM)-1;
-      for (i=0; i<m; i++)
+      maxI= nF / 3; // worst case?
+      pI= p= malloc(sizeof(*pI) * maxI); 
+   }
+   nI= findPeaks(pI, maxI, f ,nF);
+   if (nI > maxM)
+   {
+      printf("WARNING: [em] estGM() - nI=%d\n", nI);
+      nI= trimPeaks(pI, nI, maxM, f);
+   }
+   if ((nI > 0) && (maxM > 0))
+   {
+      int i, n= MIN(nI, maxM)-1;
+      for (i=0; i<n; i++)
       {
-         u= (k[i] + k[i+1]) / 2;
-         nM+= lmuSetGM(gm+nM, f, l, k[i], u);
+         u= (pI[i] + pI[i+1]) / 2;
+         nM+= lmuSetGM(gm+nM, f, l, pI[i], u);
          l= u;
       }
-      nM+= lmuSetGM(gm+nM, f, l, k[i], nF-1);
+      if ((nM < maxM) && (i<nI))
       {
+         nM+= lmuSetGM(gm+nM, f, l, pI[i], nF-1);
+      }
+      {  // normalise
          WF rt=0, t=0;
          for (int j=0; j<nM; j++) { t+= gm[j].p; }
          if (t > 0) { rt= 1.0 / t; }
          for (int j=0; j<nM; j++) { gm[j].p*= rt; }
       }
    }
-   
+   if (p) { free(p); }
    return(nM);
 } // estGM
 
@@ -168,7 +227,7 @@ int estGM (GM gm[], const int maxM, const WF f[], const int nF)
 // All-in-one EM pass with minimal memory usage (vulnerable to error where binning is strongly non-uniform)
 int em (GM rgm[], const GK gk[], const int nGK, const WorkCtx *pC)
 {
-   setNM2(pC->pM2, nGK, 0);
+   zeroNM2(pC->pM2, nGK);
    for (int i= 0; i < pC->maxO; i++)
    {
       WF s= evalNGK(pC->pE, i, gk, nGK);
@@ -280,6 +339,35 @@ void freeWC (WorkCtx *pWC)
    }
 } // freeWC
 
+int em1DNF (GM *pR, const int maxR, const WF obs[], const int nObs, const int mf)
+{
+   //printf("em1DNF(%p, %d, %p, %d, %d)\n",pR,maxR,obs,nObs,mf);
+   int nM= estGM(pR, NULL, maxR, obs, nObs);
+   if (nM > 0)
+   {
+      const int maxIter= mf & 0xFF;
+      const U8 f= mf >> 16;
+      WorkCtx wc={0,};
+      
+      if (maxIter > 0)
+      {
+         initWC(&wc, obs, nObs, nM, nM*(0==(f & 0x80)) );
+         
+         if (nM <= maxR) { memcpy(wc.pR, pR, nM * sizeof(*pR)); }
+         else { nM= estGM(wc.pR, wc.ws.p, wc.maxM, obs, nObs); } // run again with more space
+         
+         for (int i=0; i<maxIter; i++)
+         {
+            getNGK(wc.pGK, wc.pR, nM);
+            em(wc.pR, wc.pGK, nM, &wc);
+            //if (verbose > 1) { printf("I%02d : mgm=", i); dumpHMNF((void*)(pR+aR), nM, GM_NK); }
+         }
+         freeWC(&wc);
+      }
+   }
+   return(nM);
+} // em1DNF
+
 #ifndef LIB_TARGET
 
 #include "emTest.h"
@@ -326,8 +414,11 @@ int main (int argc, char *argv[])
    {
       const GM gmm[2]={{0.2,6,1},{0.8,20,4}};
       genObs((WF*)(pWC->pO), pWC->maxO, gmm, 2, verbose); // synthesise
-      r= getNoiseF(pWC->pE, MIN(pWC->ws.bytes,pWC->maxO), 1.0, 1.0/32, pWC->ws.p, verbose);
-      if (r > 0) { prodNF((WF*)(pWC->pO), pWC->pO, pWC->pE, MIN(r, pWC->maxO)); } // modulate
+      if (0)
+      {  // noise modulation
+         r= getNoiseF(pWC->pE, MIN(pWC->ws.bytes,pWC->maxO), 1.0, 1.0/32, pWC->ws.p, verbose);
+         if (r > 0) { prodNF((WF*)(pWC->pO), pWC->pO, pWC->pE, MIN(r, pWC->maxO)); }
+      }
       r= t2(pWC,10,verbose); // test
       freeWC(&wc);
    }

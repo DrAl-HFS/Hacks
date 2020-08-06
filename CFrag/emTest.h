@@ -5,7 +5,6 @@
 #ifndef EM_TEST_H
 #define EM_TEST_H
 
-#include <stdio.h>
 #include "em.h"
 
 extern void t1 (void);
