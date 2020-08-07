@@ -28,18 +28,21 @@ def ctTest (x):
     n= nrmf(r.ctypes.data_as(POINTER(c_double)), x.ctypes.data_as(POINTER(c_int)), x.size)
     return r, n
 
-def em1DNF (h,nr):
+def em1DNF (h,nR,nIter=10,debug=False):
     eml= CDLL("/home/al/dev/Hacks/CFrag/em.so")
     emf= eml.em1DNF
     emf.argtypes= [ POINTER(c_double), c_int, POINTER(c_double), c_int, c_int ]
     emf.restype= c_int
-    r= numpy.zeros( nr*3, dtype=numpy.float64)
+    r= numpy.zeros( nR*3, dtype=numpy.float64)
     #print("em1DNF() - r[", type(r[0]), "h[", type(h[0]) )
-    nr= emf(r.ctypes.data_as(POINTER(c_double)), nr, h.ctypes.data_as(POINTER(c_double)), h.size, 0)
+    mf= nIter
+    if debug:
+       mf|= (0x80<<24)
+    nR= emf(r.ctypes.data_as(POINTER(c_double)), nR, h.ctypes.data_as(POINTER(c_double)), h.size, mf)
     lr= []
-    if nr > 0:
+    if nR > 0:
         r= numpy.reshape(r,(-1,3))
-        for i in range(nr):
+        for i in range(nR):
             lr.append( tuple(r[i,:]) )
     return lr
 
@@ -114,11 +117,32 @@ def npHist (dat,mm,nBins,hvl=1000000000):
 
 def procCV (imBGR8):
     imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
-    #imH8= numpy.uint8( imH32 * (0xFF / 360.0) ) # 0~0xFF
-    imH8= imHSV8[:,:,0] # 0 ~ 179
+    # # 0~0xFF, but pre-quantised, so useless.
+    imH8= imHSV8[:,:,0] # NB: 0 ~ 179
     satM8= 0xFF * (imHSV8[:,:,1] > 0x1F).astype(numpy.uint8)
     bh= cvHist(imH8, satM8)
     return bh
+
+def procECV (imBGR8):
+    # NB: Conversion always generates H range 0.0, 360.0 irrespective of input scale.
+    # (However S & V normed 0.0~1.0 as might be expected.)
+    imHSV32= cv2.cvtColor(numpy.float32(imBGR8), cv2.COLOR_BGR2HSV)
+    satM8= 0xFF * (imHSV32[:,:,1] > (1.0/16)).astype(numpy.uint8)
+    #imH8= numpy.uint8( imHSV32[:,:,0] * (0xFF / 360.0) )
+    h= cvHist(imHSV32[:,:,0], satM8)
+    # h= cv2.calcHist([ imHSV32[:,:,0] ],[0],satM8,[256],[0,255])
+    return h # numpy.float64(h)
+
+def procENP (imBGR8,bins=256):
+    imHSV32= cv2.cvtColor(numpy.float32(imBGR8), cv2.COLOR_BGR2HSV)
+    #print("Sat32:", numpy.min(imHSV32[:,:,1]), numpy.max(imHSV32[:,:,1]) )
+    #satM8= 0xFF * (imHSV32[:,:,1] >= 0.125).astype(numpy.uint8)
+    imH32= imHSV32[:,:,0]
+    sh= imH32.shape
+    nSh= sh[0] * sh[1]
+    mm= ( numpy.min(imH32), numpy.max(imH32) )
+    h= npHist(imH32.ravel(),mm,bins,nSh/100)
+    return h
 
 if "__main__" == __name__ :
     if len(sys.argv) > 1:
@@ -127,25 +151,16 @@ if "__main__" == __name__ :
         print("Usage:",sys.argv[0],"<image-file>")
         #imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
         #bh= info(imHSV8,None)
-    procCV(imBGR8)
-    print("---")
-    print("->f32")
-    imHSV32= cv2.cvtColor(numpy.float32(imBGR8), cv2.COLOR_BGR2HSV)
-    # NB: Conversion always generates H range 0.0, 360.0 irrespective of input scale.
-    # (However S & V normed 0.0~1.0 as might be expected.)
-    #print("Sat32:", numpy.min(imHSV32[:,:,1]), numpy.max(imHSV32[:,:,1]) )
-    #satM8= 0xFF * (imHSV32[:,:,1] >= 0.125).astype(numpy.uint8)
-    imH32= imHSV32[:,:,0]
-    sh= imH32.shape
-    nSh= sh[0] * sh[1]
-    mm= ( numpy.min(imH32), numpy.max(imH32) )
-    h= npHist(imH32.ravel(),mm,1000,nSh/100)
-    print("---")
-    lgm= em1DNF(h,12)
-    print("em1DNF() - ", len(lgm))
+    h= procECV(imBGR8)
+    ha= numpy.float64(h[:,0]);
+    print( "sum=", numpy.sum(ha), type(ha), ha.shape, type(ha[0]) )
+    lgm= em1DNF(ha,12)
+    #print("em1DNF() - ", len(lgm))
     for m in lgm:
         print(m)
     if False:
+        print("---")
+        print("->f32")
         pmf, n= ctTest(h)
         print(n,pmf)
     if False:
