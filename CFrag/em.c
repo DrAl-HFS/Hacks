@@ -212,43 +212,46 @@ int lmuSetGM (GM *pGM, const WF f[], int l, int m, int u, const WF w)
    return setNGM(pGM, &m2, 1);
 } // lmuSetGM
 
-int estGM (GM gm[], int *pI, const int maxM, const WF f[], const int nF, const WF w)
+int estGM (GM gm[], const int maxM, const WF f[], const int nF, const WF w)
 {
-   int nI, maxI=maxM, nM= 0, l=0, u=nF-1;
-   void *p=NULL;
+   int nI, nM= 0, l=0, u=nF-1;
+   int maxI, *pI=NULL;
 
    if (NULL == pI)
    {
       maxI= nF / 3; // worst case?
-      pI= p= malloc(sizeof(*pI) * maxI);
+      pI= malloc(sizeof(*pI) * maxI);
    }
-   nI= findPeaks(pI, maxI, f ,nF);
-   if (nI > maxM)
+   if (pI)
    {
-      printf("WARNING: [em] estGM() - nI=%d\n", nI);
-      nI= trimPeaks(pI, nI, maxM, f);
+      nI= findPeaks(pI, maxI, f ,nF);
+      if (nI > maxM)
+      {
+         printf("WARNING: [em] estGM() - nI=%d\n", nI);
+         nI= trimPeaks(pI, nI, maxM, f);
+      }
+      if ((nI > 0) && (maxM > 0))
+      {
+         int i, n= MIN(nI, maxM)-1;
+         for (i=0; i<n; i++)
+         {
+            u= (pI[i] + pI[i+1]) / 2;
+            nM+= lmuSetGM(gm+nM, f, l, pI[i], u, w);
+            l= u;
+         }
+         if ((nM < maxM) && (i<nI))
+         {
+            nM+= lmuSetGM(gm+nM, f, l, pI[i], nF-1, w);
+         }
+         {  // normalise
+            WF rt=0, t=0;
+            for (int j=0; j<nM; j++) { t+= gm[j].p; }
+            if (t > 0) { rt= 1.0 / t; }
+            for (int j=0; j<nM; j++) { gm[j].p*= rt; }
+         }
+      } else { printf("WARNING: [em] estGM() - nI=%d, maxM=%d\n", nI, maxM); }
+      free(pI);
    }
-   if ((nI > 0) && (maxM > 0))
-   {
-      int i, n= MIN(nI, maxM)-1;
-      for (i=0; i<n; i++)
-      {
-         u= (pI[i] + pI[i+1]) / 2;
-         nM+= lmuSetGM(gm+nM, f, l, pI[i], u, w);
-         l= u;
-      }
-      if ((nM < maxM) && (i<nI))
-      {
-         nM+= lmuSetGM(gm+nM, f, l, pI[i], nF-1, w);
-      }
-      {  // normalise
-         WF rt=0, t=0;
-         for (int j=0; j<nM; j++) { t+= gm[j].p; }
-         if (t > 0) { rt= 1.0 / t; }
-         for (int j=0; j<nM; j++) { gm[j].p*= rt; }
-      }
-   } else { printf("WARNING: [em] estGM() - nI=%d, maxM=%d\n", nI, maxM); }
-   if (p) { free(p); }
    return(nM);
 } // estGM
 
@@ -369,34 +372,36 @@ void freeWC (WorkCtx *pWC)
    }
 } // freeWC
 
+#include "dump.h"
+
 int em1DNF (GM *pR, const int maxR, const WF obs[], const int nObs, const int mf)
 {
    const WF w= 0; //.5;
-   int nR=0, nM= estGM(pR, NULL, maxR, obs, nObs, w);
+   int nR=0, nM= estGM(pR, maxR, obs, nObs, w);
 
    if (nM > 0)
    {
       const int maxIter= mf & 0xFF;
-      //const int nnn= (mf >> 8) & 0xFF;
-      const U8 f= mf >> 24;
+      const int f= mf >> 24;
+      const int verbosity= f & 0x3;
       WorkCtx wc={0,};
 
-      if (f & (1<<7)) { printf("em1DNF() - nM=%d, maxIter=%d\n",nM, maxIter); }
-      if (maxIter > 0)
-      {
-         initWC(&wc, obs, nObs, nM, nM*(0==(f & 0x80)) );
+      if (verbosity > 1) { printf("em1DNF() - nM=%d, maxIter=%d\n",nM, maxIter); }
+      if (verbosity > 2) { printf("est:"); dumpHMNF((void*)pR, nM, GM_NK); }
 
-         // Try again with more space
-         if (nM > maxR) { nM= estGM(wc.pR, wc.ws.p, wc.maxM, obs, nObs, w); }
+      if (  (maxIter > 0) &&
+            initWC(&wc, obs, nObs, nM, nM*(0==(f & 0x80)) ))
+      {
+         if (nM > 0) { memcpy(wc.pR, pR, nM * sizeof(*pR)); }
 
          for (int i=0; i<maxIter; i++)
          {
             getNGK(wc.pGK, wc.pR, nM);
             em(wc.pR, wc.pGK, nM, &wc);
-            //if (f > 1) { printf("I%02d : mgm=", i); dumpHMNF((void*)(wc.pR), nM, GM_NK); }
+            if (verbosity > 2) { printf("I%02d : mgm=", i); dumpHMNF((void*)(wc.pR), nM, GM_NK); }
          }
          nR= MIN(nM,maxR);
-         if (nR > 0) { memcpy(wc.pR, pR, nR * sizeof(*pR)); }
+         if (nR > 0) { memcpy(pR, wc.pR, nR * sizeof(*pR)); }
          freeWC(&wc);
       }
    }

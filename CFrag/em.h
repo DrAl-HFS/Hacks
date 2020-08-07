@@ -60,7 +60,7 @@ extern WF addSplitSumNF (WF ss[2], const WF x[], const int n);
 
 
 extern void getNGK (GK gk[], const GM gm[], const int n);
-extern int estGM (GM gm[], int *pI, const int maxM, const WF f[], const int nF, const WF w);
+extern int estGM (GM gm[], const int maxM, const WF f[], const int nF, const WF w);
 
 extern int em (GM rgm[], const GK gk[], const int nGK, const WorkCtx *pC);
 // Separate E,M passes requiring large [nM*nO] buffer for intermediate results

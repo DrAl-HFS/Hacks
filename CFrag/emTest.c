@@ -68,63 +68,6 @@ int getNoiseF (WF f[], const int n, const WF noiseMean, const WF noiseFrac, void
    return(r);
 } // getNoiseF
 
-void dumpNXB (const void *p, const int n)
-{
-   for (int i=0; i<n; i++) { printf("%02X", ((char*)p)[i]); }
-} // dumpNXB
-
-void dumpHNXB (const void *p, const int n)
-{
-   if (p && (n > 0))
-   {
-      printf("[%d]= ", n);
-      dumpNXB(p,n);
-      printf("\n");
-   } else printf("[]\n");
-} // dumpHNXB
-
-void dumpNF (const WF f[], const int n)
-{
-   if (n > 0) printf("%G", f[0]);
-   for (int i=1; i<n; i++) { printf(", %G",f[i]); }
-} // dumpNF
-
-void dumpHNF (const WF f[], const int n)
-{
-   if (n > 0)
-   {
-      printf("[%d]= ", n);
-      dumpNF(f,n);
-      printf("\n");
-   } else printf("[]\n");
-} // dumpHNF
-
-void dumpHMNF (const WF f[], const int m, const int n)
-{
-   if ((m > 0) && (n > 0))
-   {
-      printf("[%d,%d]= ", m, n);
-      printf("{");
-      dumpNF(f,n);
-      printf("}");
-      for (int i=1; i<m; i++)
-      {
-         printf(", {");
-         dumpNF(f+i*n,n);
-         printf("}");
-      }
-      printf("\n");
-   } else printf("[]\n");
-} // dumpMNF
-
-void dumpINZNF (const WF f[], const int n)
-{
-   if (n > 0)
-   {
-      for (int i=0; i<n; i++) { if (0 != f[i]) printf("[%d]= %G\n",i,f[i]); }
-   } else printf("[]\n");
-} // dumpINZNF
-
 void t1 (void)
 {
    int x[]={1,2,3,4,5}, n= 5;
@@ -165,7 +108,7 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
    int nM, aR=0, dR=0, nR=0;
    size_t bR;
 
-   nM= estGM(pWC->pR, NULL, pWC->maxM, pWC->pO, pWC->maxO, 0.5);
+   nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO, 0.5);
    if (verbose > 0) { printf("estGM"); dumpHMNF((void*)(pWC->pR), nM, GM_NK); }
 
    bR= nM * nP * 2 * sizeof(GM);
