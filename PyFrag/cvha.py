@@ -28,16 +28,14 @@ def ctTest (x):
     n= nrmf(r.ctypes.data_as(POINTER(c_double)), x.ctypes.data_as(POINTER(c_int)), x.size)
     return r, n
 
-def em1DNF (h,nR,nIter=10,debug=False):
+def em1DNF (h,nR,nIter=10,verbosity=1):
     eml= CDLL("/home/al/dev/Hacks/CFrag/em.so")
     emf= eml.em1DNF
     emf.argtypes= [ POINTER(c_double), c_int, POINTER(c_double), c_int, c_int ]
     emf.restype= c_int
     r= numpy.zeros( nR*3, dtype=numpy.float64)
     #print("em1DNF() - r[", type(r[0]), "h[", type(h[0]) )
-    mf= nIter
-    if debug:
-       mf|= (0x80<<24)
+    mf= nIter | (verbosity<<24)
     nR= emf(r.ctypes.data_as(POINTER(c_double)), nR, h.ctypes.data_as(POINTER(c_double)), h.size, mf)
     lr= []
     if nR > 0:
@@ -65,6 +63,7 @@ def dumpBH (hist,hvl=1000000000):
     i= 0
     n= 0
     sum= 0
+    print("dumpBH() - ", type(hist), hist.shape, hist.dtype)
     for f in hist:
         if f > hvl:
             print(hex(i),':',f)
@@ -152,12 +151,14 @@ if "__main__" == __name__ :
         #imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
         #bh= info(imHSV8,None)
     h= procECV(imBGR8)
-    ha= numpy.float64(h[:,0]);
-    print( "sum=", numpy.sum(ha), type(ha), ha.shape, type(ha[0]) )
-    lgm= em1DNF(ha,12)
-    #print("em1DNF() - ", len(lgm))
-    for m in lgm:
-        print(m)
+    s= numpy.sum(h)
+    print( "sum=", s)
+    if s > 0:
+        pmf= numpy.float64(h[:,0]) * 1.0 / s;
+        lgm= em1DNF(pmf,12)
+        for m in lgm:
+            print(m)
+
     if False:
         print("---")
         print("->f32")
