@@ -9,7 +9,8 @@
 
 extern void t1 (void);
 
-extern size_t getNoise (void *p, size_t bytes);
+//extern size_t getNoise (void *p, size_t bytes);
+extern int getNoiseF (WF f[], const int n, const WF noiseMean, const WF noiseFrac, void *p, int verbose);
 
 extern int genObs (WF obs[], int nObs, const GM gmm[], int nM, int verbose);
 
@@ -17,5 +18,6 @@ extern int t2 (const WorkCtx *pWC, const int nP, int verbose);
 
 extern void dumpHNXB (const void *p, const int n);
 extern void dumpHNF (const WF f[], const int n);
+extern void dumpHMNF (const WF f[], const int m, const int n);
 
 #endif // EM_TEST_H

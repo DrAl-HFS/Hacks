@@ -36,6 +36,38 @@ size_t getNoise (void *p, size_t bytes)
    return(r);
 } // getNoise
 
+void linMapNBF (WF f[], const U8 b[], const int n, const WF lm[2])
+{
+   for (int i=0; i<n; i++) { f[i]= lm[0] + b[i] * lm[1]; }
+} // linMapNBF
+
+unsigned long sumU8 (U8 u[], const int n) { unsigned long t= (n>0)?u[0]:0; for (int i=0; i<n; i++) { t+= u[i]; } return(t); }
+
+int getNoiseF (WF f[], const int n, const WF noiseMean, const WF noiseFrac, void *p, int verbose)
+{
+   int r= getNoise(p,n);
+   if (r > 0)
+   {
+      WF lm[2], nm=0;
+
+      nm= (WF)sumU8(p,r) / r;
+      lm[1]= noiseFrac / (0.5 * 0xFF);
+      lm[0]= noiseMean - 0.5*noiseFrac - 0.475*nm*lm[1];
+      if (verbose > 1) { printf("getNoise() - "); dumpHNXB(p, r); printf("mean= %G\n", nm); }
+      linMapNBF(f, p, r, lm);
+
+      if (verbose > 1)
+      {
+         WF t, m;
+         t= sumNF(f,r);
+         m= t / r;
+         printf("noise modulation "); dumpHNF(f, r);
+         printf("sum= %G, mean= %G, err= %G\n", t, m, noiseMean-m);
+      }
+   }
+   return(r);
+} // getNoiseF
+
 void dumpNXB (const void *p, const int n)
 {
    for (int i=0; i<n; i++) { printf("%02X", ((char*)p)[i]); }
@@ -106,7 +138,7 @@ void t1 (void)
 int genObs (WF obs[], int nObs, const GM gmm[], int nM, int verbose)
 {
    GK gk[MAX_GEN_GK];
-   
+
    if (nM > MAX_GEN_GK) { nM= MAX_GEN_GK; }
    getNGK(gk, gmm, nM);
 
@@ -132,10 +164,10 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
    GM *pR= pWC->pR;
    int nM, aR=0, dR=0, nR=0;
    size_t bR;
-   
-   nM= estGM(pWC->pR, NULL, pWC->maxM, pWC->pO, pWC->maxO);
+
+   nM= estGM(pWC->pR, NULL, pWC->maxM, pWC->pO, pWC->maxO, 0.5);
    if (verbose > 0) { printf("estGM"); dumpHMNF((void*)(pWC->pR), nM, GM_NK); }
-   
+
    bR= nM * nP * 2 * sizeof(GM);
    if (pWC->ws.bytes >= bR)
    {
