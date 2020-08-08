@@ -104,34 +104,38 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
 {
    WF ss[2]={0,0};
    WF sad=-1, resid=-1;
-   GM *pR= pWC->pR;
+   GM *pR, *pR0;
    int nM, aR=0, dR=0, nR=0;
    size_t bR;
 
-   nM= estGM(pWC->pR, pWC->maxM, pWC->pO, pWC->maxO, 0.5);
-   if (verbose > 0) { printf("estGM"); dumpHMNF((void*)(pWC->pR), nM, GM_NK); }
-
-   bR= nM * nP * 2 * sizeof(GM);
+   pR0= pWC->pR[0];
+   nM= estGM(pR0, pWC->maxM, pWC->pO, pWC->maxO, 0);
+   bR= nM * (1 + (nP * 2)) * sizeof(GM);
    if (pWC->ws.bytes >= bR)
    {
       pR= pWC->ws.p;
       dR= nM;
    }
+   else { return(-1); }
+   if (verbose > 0) { printf("estGM"); dumpHMNF((void*)pR0, nM, GM_NK); }
+
    if (verbose > 1) { printf("--E+M--\n"); }
+   getNGK(pWC->pGK, pR0, nM);
    for (int i=0; i<nP; i++)
    {
-      getNGK(pWC->pGK, pWC->pR, nM);
       expect(pWC->pE, pWC->pGK, nM, pWC->pO, pWC->maxO);
       maximise(pR+aR, pWC->pE, nM, pWC->maxO);
+      getNGK(pWC->pGK, pR+aR, nM);
       if (verbose > 1) { printf("I%02d : mgm=", i); dumpHMNF((void*)(pR+aR), nM, GM_NK); }
       aR+= dR;
    }
    nR= aR - dR;
    if (verbose > 1) { printf("--EM--\nS"); }
+   getNGK(pWC->pGK, pR0, nM);
    for (int i=0; i<nP; i++)
    {
-      getNGK(pWC->pGK, pWC->pR, nM);
       em(pR+aR,pWC->pGK,nM,pWC);
+      getNGK(pWC->pGK, pR+aR, nM);
       if (verbose > 1) { printf("I%02d : mgm=", i); dumpHMNF((void*)(pR+aR), nM, GM_NK); }
       aR+= dR;
    }

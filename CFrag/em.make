@@ -1,7 +1,7 @@
 #!/usr/bin/env make
 # -f ??
 
-.PHONY : default shared
+.PHONY : default shared all run clean
 
 
 TARGET := em
@@ -16,6 +16,7 @@ SHR_SRC := $(SRC)
 SHR_HDR := $(HDR)
 
 CC := gcc -Wall
+DBGDEF := -g -O0
 OPTDEF := -O3 -march=native
 SHRDEF := -fPIC -shared -DLIB_TARGET
 
@@ -29,7 +30,7 @@ LIBDEF := -lm
 
 # Small source - full build every time
 $(CLI_TARGET) : $(CLI_SRC) $(CLI_HDR) $(MAKEFILE)
-	$(CC) $(OPTDEF) $(INCDEF) $(LIBDEF) $(CLI_SRC) -o $@
+	$(CC) $(DBGDEF) $(INCDEF) $(LIBDEF) $(CLI_SRC) -o $@
 
 $(SHR_TARGET) : $(SHR_SRC) $(SHR_HDR) $(MAKEFILE)
 	$(CC) $(OPTDEF) $(INCDEF) $(LIBDEF) $(SHRDEF) $(SHR_SRC) -o $@
@@ -39,3 +40,11 @@ $(SHR_TARGET) : $(SHR_SRC) $(SHR_HDR) $(MAKEFILE)
 default : $(CLI_TARGET)
 
 shared : $(SHR_TARGET)
+
+all : default shared
+
+run : $(CLI_TARGET)
+	./$(CLI_TARGET) testImg.png
+
+clean :
+	@rm -rf $(CLI_TARGET) $(SHR_TARGET) *.o *.dwf *.pdb prof

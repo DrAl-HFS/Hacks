@@ -27,7 +27,7 @@ typedef struct s_MB { union { void *p; size_t w; }; size_t bytes; } MB;
 typedef struct
 {
    MB mb, ws;   // Total buffer & extra misc workspace (for testing)
-   GM *pR;  // Result (intermediate)
+   GM *pR[2];  // Result (intermediate/final)
    GK *pGK; // Working coefficient
    const WF *pO; // Observations (input)
    WF *pE;     // expectation data

@@ -340,14 +340,15 @@ const WorkCtx * initWC (WorkCtx *pWC, const WF *pO, const size_t maxO, const siz
          if (NULL == pO)
          {  // Test mode, observations to be synthesised
             pWC->pO= pWC->mb.p;
-            pWC->pR= (void*)(pWC->pO + maxO);
+            pWC->pR[0]= (void*)(pWC->pO + maxO);
          }
          else
          {
             pWC->pO= pO;
-            pWC->pR= pWC->mb.p;
+            pWC->pR[0]= pWC->mb.p;
          }
-         pWC->pGK= (void*)(pWC->pR + maxM);
+         pWC->pR[1]= NULL;
+         pWC->pGK= (void*)(pWC->pR[0] + maxM);
          pWC->pM2= (void*)(pWC->pGK + maxM);
          pWC->pE=  (void*)(pWC->pM2 + maxM);
          pWC->maxM= maxM;
@@ -376,36 +377,37 @@ void freeWC (WorkCtx *pWC)
 
 int em1DNF (GM *pR, const int maxR, const WF obs[], const int nObs, const int mf)
 {
-   const WF w= 0; //.5;
-   int nR=0, nM= estGM(pR, maxR, obs, nObs, w);
+   const int maxIter= mf & 0xFF;
+   const int f= mf >> 24;
+   const int verbosity= f & 0x3;
+   WorkCtx wc={0,};
+   int nM= estGM(pR, maxR, obs, nObs, 0);
 
    if (nM > 0)
    {
-      const int maxIter= mf & 0xFF;
-      const int f= mf >> 24;
-      const int verbosity= f & 0x3;
-      WorkCtx wc={0,};
-
       if (verbosity > 1) { printf("em1DNF() - nM=%d, maxIter=%d\n",nM, maxIter); }
       if (verbosity > 2) { printf("est:"); dumpHMNF((void*)pR, nM, GM_NK); }
 
       if (  (maxIter > 0) &&
             initWC(&wc, obs, nObs, nM, nM*(0==(f & 0x80)) ))
       {
-         if (nM > 0) { memcpy(wc.pR, pR, nM * sizeof(*pR)); }
+         wc.pR[1]= pR; // client buffer
 
-         for (int i=0; i<maxIter; i++)
+         int iter= 0, iDest;
+         do
          {
-            getNGK(wc.pGK, wc.pR, nM);
-            em(wc.pR, wc.pGK, nM, &wc);
-            if (verbosity > 2) { printf("I%02d : mgm=", i); dumpHMNF((void*)(wc.pR), nM, GM_NK); }
-         }
-         nR= MIN(nM,maxR);
-         if (nR > 0) { memcpy(pR, wc.pR, nR * sizeof(*pR)); }
+            iDest= iter & 1;
+            getNGK(wc.pGK, wc.pR[iDest^1], nM);
+            em(wc.pR[iDest], wc.pGK, nM, &wc);
+            if (verbosity > 2) { printf("I%02d : mgm=", iter); dumpHMNF((void*)(wc.pR), nM, GM_NK); }
+         } while (++iter < maxIter);
+
+         if (pR != wc.pR[iDest]) { memcpy(pR, wc.pR[iDest], nM * sizeof(*pR)); }
          freeWC(&wc);
+         return(nM);
       }
    }
-   return(nR);
+   return(0);
 } // em1DNF
 
 #ifndef LIB_TARGET
