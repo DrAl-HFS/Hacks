@@ -35,6 +35,20 @@ typedef struct
    size_t maxM, maxO, maxE; //
 } WorkCtx;
 
+typedef struct s_EEP // Extended param for initial estimation
+{
+   U8 verbosity;
+   U8 flags;
+   U8 tM;  // Target model count
+   U8 maxIter;
+   WF  rwp; // relative width about peak
+   WF  termSADR;
+   WF  sad[2][GM_NK]; // convergence analysis
+} EEP;
+
+#define FLAG_FLEM 0x80   // Use full expect-max with increased memory requirement
+#define FLAG_FLIT 0x40   // Perform full iterations specified
+
 
 /***/
 
@@ -57,10 +71,10 @@ extern void prodNF (WF r[], const WF x[], const WF y[], const int n);
 extern WF sumNF (const WF x[], const int n);
 // Summation by sign [-ve,+ve] returns absolute sum
 extern WF addSplitSumNF (WF ss[2], const WF x[], const int n);
-
+extern WF dotNF (const WF x[], const WF y[], const int n);
 
 extern void getNGK (GK gk[], const GM gm[], const int n);
-extern int estGM (GM gm[], const int maxM, const WF f[], const int nF, const WF w);
+extern int estGM (GM gm[], const int maxM, const WF f[], const int nF, const EEP *pE);
 
 extern int em (GM rgm[], const GK gk[], const int nGK, const WorkCtx *pC);
 // Separate E,M passes requiring large [nM*nO] buffer for intermediate results

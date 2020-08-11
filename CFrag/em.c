@@ -4,21 +4,57 @@
 
 #include "em.h"
 
+/***/
+
+
 
 /***/
 
 int validMB (const MB *pMB, const size_t bytes) { return (pMB && pMB->p && (pMB->bytes >= bytes)); }
 
-// Float vector functions
+// Floating point data processing routines
+
+// Vector routines (unstrided)
 void diffNF (WF d[], const WF x[], const WF y[], const int n) { for (int i=0; i<n; i++) { d[i]= x[i] - y[i]; } }
 void scaleNF (WF s[], const WF x[], const int n, const WF k) { for (int i=0; i<n; i++) { s[i]= x[i] * k; } }
 void prodNF (WF r[], const WF x[], const WF y[], const int n) { for (int i=0; i<n; i++) { r[i]= x[i] * y[i]; } }
+void sumProdNF (WF r[], const WF x[], const WF y[], const int n) { for (int i=0; i<n; i++) { r[i]= x[i] * y[i]; } }
+int convNF (WF r[], const WF x[], const int nX, const WF k[], const int nK, const int mode)
+{  // Discrete convolution of signal X with kernel K
+   if ((nX > nK) && (nK > 1))
+   {
+      if (0 == mode)
+      {
+         for (int i= 0; i < (nX-nK); i++) { r[i]= dotNF(x+i, k, nK); }
+         return(nX-nK);
+      } //else
+      for (int i= 0; i < (nX-nK); i++) { r[i+nK/2]= dotNF(x+i, k, nK); }
+      switch (mode)
+      {
+         case 1 : // boundaries (partial kernel)
+            for (int i= 1; i < nK; i++)
+            {
+               r[nK-i]= dotNF(x, k+i, nK-i);       // lo
+               r[nX-i]= dotNF(x+nX-nK+i, k, nK-i); // hi
+            }
+            return(nX);
+         case 2 : // periodic boundaries (wrapped kernel)
+            for (int i= 1; i < nK; i++)
+            {  // ???
+               r[nK-i]= dotNF(x, k+i, nK-i) + dotNF(x+nX-i, k+nK-i, i);    // lo1+hi2
+               r[nX-i]= dotNF(x+nX-nK+i, k, nK-i) + dotNF(x, k+i, nK-i);   // hi1+lo2
+            }
+            return(nX);
+      }
+   }
+   return(0);
+} // convNF
 
-// scalar reductions
+// Scalar reduction functions
 WF sumNF (const WF x[], const int n) { WF t= (n>0)?x[0]:0; for (int i=1; i<n; i++) { t+= x[i]; } return(t); }
 // Summation by sign [-ve,+ve] returns absolute sum
 WF addSplitSumNF (WF ss[2], const WF x[], const int n) { for (int i=0; i<n; i++) { ss[ (x[i] >= 0) ] += x[i]; } return(ss[1] - ss[0]); }
-//WF dotNF (const WF x[], const WF y[], const int n) { WF t= (n>0)?x[0]*y[0]:0; for (int i=1; i<n; i++) { t+= x[i] * y[i]; } return(t); }
+WF dotNF (const WF x[], const WF y[], const int n) { WF t= (n>0)?x[0]*y[0]:0; for (int i=1; i<n; i++) { t+= x[i] * y[i]; } return(t); }
 
 WF sumStrideNF (const WF w[], const int s, const int n) { WF t= (n>0)?w[0]:0; for (int i=1; i<n; i++) { t+= w[i*s]; } return(t); }
 WF sumIProdStrideNF (const WF w[], const int s, const int n) { WF t= 0; for (int i=1; i<n; i++) { t+= i * w[i*s]; } return(t); }
@@ -55,6 +91,21 @@ void zeroNM2 (M2 m[], const size_t n) { memset(m, 0, n * sizeof(M2)); }
    }
 } // setNM2
 */
+
+int sadMNF (WF sad[], const WF x[], const WF y[], const int m, const int n)
+{
+   int k= 0;
+   for (int j= 0; j < m; j++) { sad[j]= 0; }
+   for (int i= 0; i < n; i++)
+   {
+      for (int j= 0; j < m; j++)
+      {
+         sad[j]+= fabs(x[k] - y[k]);
+         ++k;
+      }
+   }
+   return(m);
+} // sadMNF
 
 /***/
 
@@ -203,7 +254,7 @@ int lmuSetGM (GM *pGM, const WF f[], int l, int m, int u, const WF w)
       l= lerp(m,l,w);
       u= lerp(m,u,w);
    }
-   for (int i=l; i<u; i++)
+   for (int i=l; i<=u; i++)
    {
       m2.m[0]+= f[i]; // x^0=1
       m2.m[1]+= i * f[i];
@@ -212,9 +263,12 @@ int lmuSetGM (GM *pGM, const WF f[], int l, int m, int u, const WF w)
    return setNGM(pGM, &m2, 1);
 } // lmuSetGM
 
-int estGM (GM gm[], const int maxM, const WF f[], const int nF, const WF w)
+WF getRWP (const EEP *pE) { if (pE) return(pE->rwp); else return(0); }
+int getTM (const int maxM, const EEP *pE) { if (pE && pE->tM > 0) return MIN(maxM, (int)(pE->tM)); else return(maxM); }
+
+int estGM (GM gm[], const int maxM, const WF f[], const int nF, const EEP *pE)
 {
-   int nI, nM= 0, l=0, u=nF-1;
+   int nI, tM, nM= 0, l=0, u=nF-1;
    int maxI, *pI=NULL;
 
    if (NULL == pI)
@@ -224,24 +278,25 @@ int estGM (GM gm[], const int maxM, const WF f[], const int nF, const WF w)
    }
    if (pI)
    {
+      tM= getTM(maxM, pE);
       nI= findPeaks(pI, maxI, f ,nF);
-      if (nI > maxM)
+      if (nI > tM)
       {
          printf("WARNING: [em] estGM() - nI=%d\n", nI);
-         nI= trimPeaks(pI, nI, maxM, f);
+         nI= trimPeaks(pI, nI, tM, f);
       }
-      if ((nI > 0) && (maxM > 0))
+      if ((nI > 0) && (tM > 0))
       {
-         int i, n= MIN(nI, maxM)-1;
+         int i, n= MIN(nI, tM)-1;
          for (i=0; i<n; i++)
          {
             u= (pI[i] + pI[i+1]) / 2;
-            nM+= lmuSetGM(gm+nM, f, l, pI[i], u, w);
+            nM+= lmuSetGM(gm+nM, f, l, pI[i], u, getRWP(pE));
             l= u;
          }
-         if ((nM < maxM) && (i<nI))
+         if ((nM < tM) && (i<nI))
          {
-            nM+= lmuSetGM(gm+nM, f, l, pI[i], nF-1, w);
+            nM+= lmuSetGM(gm+nM, f, l, pI[i], nF-1, getRWP(pE));
          }
          {  // normalise
             WF rt=0, t=0;
@@ -249,7 +304,7 @@ int estGM (GM gm[], const int maxM, const WF f[], const int nF, const WF w)
             if (t > 0) { rt= 1.0 / t; }
             for (int j=0; j<nM; j++) { gm[j].p*= rt; }
          }
-      } else { printf("WARNING: [em] estGM() - nI=%d, maxM=%d\n", nI, maxM); }
+      } else { printf("WARNING: [em] estGM() - nI=%d, tM=%d, maxM=%d\n", nI, tM, maxM); }
       free(pI);
    }
    return(nM);
@@ -375,37 +430,95 @@ void freeWC (WorkCtx *pWC)
 
 #include "dump.h"
 
+const EEP *getExt (EEP *pE, const int mf)
+{
+   if (pE)
+   {
+      pE->flags= (mf >> 24) & 0xFF;
+      pE->verbosity= pE->flags & 0x3;
+      pE->maxIter= mf & 0xFF;
+      pE->tM= (mf >> 8) & 0xFF;
+      pE->rwp= ((mf >> 16) & 0xFF) * (1.0/128);
+      pE->termSADR= 0;
+   }
+   return(pE);
+} // getExt
+
+size_t getNE (const int nM, const EEP *pE) { if (pE->flags & FLAG_FLEM) return(0); else return(nM); }
+
+const GM *setRef (WorkCtx *pWC, GM *pR, int nM, const EEP *pE)
+{
+   GM *pRef=NULL;
+   if (pR && (nM > 0))
+   {
+      if ((NULL == pE) || (0 == (pE->flags & FLAG_FLIT)))
+      {
+         if (pWC && (pWC->maxM >= 2 * nM))
+         {
+            pRef= pWC->pR[0] + nM;
+            memcpy(pRef, pR, nM * sizeof(*pR)); // copy estimate for later reference
+         }
+      }
+   }
+   return(pRef);
+} // setRef
+
+WF maxRNF (const WF x[], const WF y[], const int n)
+{
+   WF max= -1;
+   for (int i=0; i<n; i++)
+   {
+      if (0 != y[i])
+      {
+         WF r= x[i] / y[i];
+         if (r > max) max= r;
+      }
+   }
+   return(max);
+} // maxRNF
+
 int em1DNF (GM *pR, const int maxR, const WF obs[], const int nObs, const int mf)
 {
-   const int maxIter= mf & 0xFF;
-   const int f= mf >> 24;
-   const int verbosity= f & 0x3;
    WorkCtx wc={0,};
-   int nM= estGM(pR, maxR, obs, nObs, 0);
+   EEP ext;
+   int nM;
 
+   nM= estGM(pR, maxR, obs, nObs, getExt(&ext,mf));
    if (nM > 0)
    {
-      if (verbosity > 1) { printf("em1DNF() - nM=%d, maxIter=%d\n",nM, maxIter); }
-      if (verbosity > 2) { printf("est:"); dumpHMNF((void*)pR, nM, GM_NK); }
+      if (ext.verbosity > 1) { printf("em1DNF() - nM=%d, tM=%d, maxIter=%d\n", nM, ext.tM, ext.maxIter); }
+      if (ext.verbosity > 2) { printf("est:"); dumpHMNF((void*)pR, nM, GM_NK); }
 
-      if (  (maxIter > 0) &&
-            initWC(&wc, obs, nObs, nM, nM*(0==(f & 0x80)) ))
+      if ( (ext.maxIter > 0) && initWC(&wc, obs, nObs, 2*nM, getNE(nM,&ext)) )
       {
-         wc.pR[1]= pR; // client buffer
-
-         int iter= 0, iDest;
+         const GM *pRef= setRef(&wc, pR, nM, &ext);
+         U8 iter= 0, iDest=0, nextIter= 1;
+         if (pRef)
+         {
+            getNGK(wc.pGK, pRef, nM);
+            em(wc.pR[0], wc.pGK, nM, &wc);
+            sadMNF(ext.sad[0], (WF*)(wc.pR[0]), (WF*)pRef, GM_NK, nM);
+            if (ext.verbosity > 2) { printf("SAD:"); dumpHNF(ext.sad[0], GM_NK); }
+            ++iter;
+         }
+         wc.pR[1]= pR; // iterate between internal and client buffer
          do
          {
             iDest= iter & 1;
             getNGK(wc.pGK, wc.pR[iDest^1], nM);
             em(wc.pR[iDest], wc.pGK, nM, &wc);
-            if (verbosity > 2) { printf("I%02d : mgm=", iter); dumpHMNF((void*)(wc.pR), nM, GM_NK); }
-         } while (++iter < maxIter);
+            if (pRef)
+            {
+               sadMNF(ext.sad[1], (WF*)(wc.pR[iDest]), (WF*)pRef, GM_NK, nM);
+               nextIter= maxRNF(ext.sad[1], ext.sad[0], GM_NK) > ext.termSADR;
+            }
+            if (ext.verbosity > 2) { printf("I%02d : mgm=", iter); dumpHMNF((void*)(wc.pR[iDest]), nM, GM_NK); }
+         } while ((++iter < ext.maxIter) && nextIter);
 
          if (pR != wc.pR[iDest]) { memcpy(pR, wc.pR[iDest], nM * sizeof(*pR)); }
          freeWC(&wc);
-         return(nM);
       }
+      return(nM);
    }
    return(0);
 } // em1DNF

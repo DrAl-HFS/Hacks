@@ -109,7 +109,7 @@ int t2 (const WorkCtx *pWC, const int nP, int verbose)
    size_t bR;
 
    pR0= pWC->pR[0];
-   nM= estGM(pR0, pWC->maxM, pWC->pO, pWC->maxO, 0);
+   nM= estGM(pR0, pWC->maxM, pWC->pO, pWC->maxO, NULL);
    bR= nM * (1 + (nP * 2)) * sizeof(GM);
    if (pWC->ws.bytes >= bR)
    {
