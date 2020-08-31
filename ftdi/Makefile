@@ -1,3 +1,7 @@
+# Makefile - ftdi test hacks
+# https://github.com/DrAl-HFS/Hacks.git
+# Licence: GPL V3
+# (c) Project Contributors August-Sept 2020
 
 .PHONY : run
 

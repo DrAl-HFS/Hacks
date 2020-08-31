@@ -1,5 +1,8 @@
-#!/usr/bin/env make
-# -f ??
+# em.make - makefile for Expectation Maximisation test hacks
+# https://github.com/DrAl-HFS/Hacks.git
+# Licence: GPL V3
+# (c) Project Contributors August-Sept 2020
+# NB: Hashbang and make are poorly suited... !/usr/bin/env make
 
 .PHONY : default shared all run clean
 
