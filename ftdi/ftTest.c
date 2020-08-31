@@ -1,5 +1,5 @@
 // ftTest.h - FTDI device hacking test.
-// https://github.com/DrAl-HFS/  ???Hacks.git
+// https://github.com/DrAl-HFS/Hacks.git
 // Licence: GPL V3
 // (c) Project Contributors August-Sept 2020
 
@@ -12,7 +12,7 @@
 
 
 // USB device id values
-#define ID_VNDR_FTDI	0x0403
+#define ID_VNDR_FTDI    0x0403
 #define ID_PROD_FT2232H	0x6010
 #define ID_PROD_FT232	0x6001
 
