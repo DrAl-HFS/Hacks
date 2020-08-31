@@ -35,7 +35,7 @@ void ftDumpLibInfo (void)
 
 void ftDumpDevInfo (FTCtx *pFC)
 {
-   int r=-1;
+   //int r=-1;
    //char mfr[64], desc[64], ser[64]; 
    //r= ftdi_usb_get_strings(pFC, usb_dev???, mfr, sizeof(mfr), desc, sizeof(desc), ser, sizeof(ser));
    //r= ftdi_eeprom_get_strings(pFC, mfr, sizeof(mfr)-1, desc, sizeof(desc)-1, ser, sizeof(ser)-1);
@@ -47,13 +47,17 @@ void ftDumpDevInfo (FTCtx *pFC)
 
    printf("DevTyp %d\tbaud=%d\n", pFC->type, pFC->baudrate);
    printf("IF/Idx: %d, %d\n", pFC->interface, pFC->index);
-   printf("EEPROM: %p:\n", pFC->eeprom);
-   //for (int i= 0; i<=9; i++) { printf(" %02X", pFC->eeprom->cbus_function[i]); }
-   //printf("\n--\n");
-   //r= ftdi_eeprom_decode(pFC, 1);
-   
-   //ftdi_set_eeprom_value(pFC, 
-   //for (int i= CBUS_FUNCTION_0; i<=CBUS_FUNCTION_9; i++)
+/* Nothing useful happening here...
+   r= ftdi_read_eeprom(pFC);
+   printf("EEPROM: %d -> %p:\n", r, pFC->eeprom);
+   for (int fid= CBUS_FUNCTION_0; fid<=CBUS_FUNCTION_9; fid++)
+   { 
+      int val= 0xA5FFFF00 ^ fid;
+      r= ftdi_get_eeprom_value(pFC, fid, &val);
+      printf("[%d] - %d - 0x%X\n", fid, r, val); 
+   }
+   printf("\n--\n");
+
    for (int i= VENDOR_ID; i<=PRODUCT_ID; i++)
    {
       int val=0xA5FFFF00 ^ i;
@@ -61,6 +65,7 @@ void ftDumpDevInfo (FTCtx *pFC)
       r= ftdi_get_eeprom_value(pFC, i, &val);
       printf("r%d [%d] : %04x\n", r, i, val);
    }
+*/
 } // ftDumpDevInfo
 
 FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const U8 flags)
@@ -154,7 +159,7 @@ void devTest1 (const U16 devid, const U8 flags)
    pFCA= ftInitUSB(devid, INTERFACE_A, flags);
    if (pFCA)
    {
-      if (ID_PROD_FT2232 == devid) { pFCB= ftInitUSB(devid, INTERFACE_B, flags); }
+      if (ID_PROD_FT2232 == devid) { pFCB= ftInitUSB(devid, INTERFACE_B, 0); }
 
       if (ftSetModeIF(pFCA, 0, 0xF0, BITMODE_BITBANG))
       {
@@ -176,6 +181,10 @@ void devTest1 (const U16 devid, const U8 flags)
    }
 } // devTest1
 
+// Unclear how to make "ftdi_eeprom" utility burn a previously unitialised
+// EEPROM ( perhaps multiple flags e.g. --erase-eeprom --build-eeprom
+// --flash-eeprom would work? ) 
+// However, the following hack seems to work well...
 void burnEEPROM (const U16 devid, char m[], char p[], char s[])
 {
    FTCtx *pFC= ftInitUSB(devid, 0, 0);
@@ -200,7 +209,7 @@ void burnEEPROM (const U16 devid, char m[], char p[], char s[])
 int main (int argc, char *argv[])
 {
    U16 id= ID_PROD_FT2232;
-   //burnEEPROM(ID_PROD_FT232, "232RL","DR","1");
+   //burnEEPROM(ID_PROD_FT232, "DR","232RL","1");
    //burnEEPROM(ID_PROD_FT2232, "18069A_P26", "2232H", "191216");
 
    devTest1(id, 0x11);
