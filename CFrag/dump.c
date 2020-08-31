@@ -1,6 +1,7 @@
 // dump.c - Vector data text dumping.
-// https://github.com/DrAl-HFS/Hacks.git (GPL3 licence)
-// (c) Project Contributors July-August 2020
+// https://github.com/DrAl-HFS/Hacks.git
+// Licence: GPL V3
+// (c) Project Contributors July-Sept 2020
 
 #include "dump.h"
 

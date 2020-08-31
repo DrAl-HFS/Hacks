@@ -1,6 +1,7 @@
 // em.c - Simple 1D Expectation Maximisation for distribution modelling.
-// https://github.com/DrAl-HFS/Hacks.git (GPL3 licence)
-// (c) Project Contributors July-August 2020
+// https://github.com/DrAl-HFS/Hacks.git
+// Licence: GPL V3
+// (c) Project Contributors July-Sept 2020
 
 #include "em.h"
 
@@ -438,8 +439,8 @@ const EEP *getExt (EEP *pE, const int mf)
       pE->verbosity= pE->flags & 0x3;
       pE->maxIter= mf & 0xFF;
       pE->tM= (mf >> 8) & 0xFF;
-      pE->rwp= ((mf >> 16) & 0xFF) * (1.0/128);
-      pE->termSADR= 0;
+      pE->rwp= ((mf >> 16) & 0xF0) * (1.0/128);
+      pE->termSADR= pow(0.5, (mf >> 16) & 0x0F);
    }
    return(pE);
 } // getExt
@@ -486,7 +487,7 @@ int em1DNF (GM *pR, const int maxR, const WF obs[], const int nObs, const int mf
    nM= estGM(pR, maxR, obs, nObs, getExt(&ext,mf));
    if (nM > 0)
    {
-      if (ext.verbosity > 1) { printf("em1DNF() - nM=%d, tM=%d, maxIter=%d\n", nM, ext.tM, ext.maxIter); }
+      if (ext.verbosity > 1) { printf("em1DNF() - maxR=%d, nM=%d, tM=%d, maxIter=%d, termSADR=%G\n", maxR, nM, ext.tM, ext.maxIter, ext.termSADR); }
       if (ext.verbosity > 2) { printf("est:"); dumpHMNF((void*)pR, nM, GM_NK); }
 
       if ( (ext.maxIter > 0) && initWC(&wc, obs, nObs, 2*nM, getNE(nM,&ext)) )
@@ -510,10 +511,13 @@ int em1DNF (GM *pR, const int maxR, const WF obs[], const int nObs, const int mf
             if (pRef)
             {
                sadMNF(ext.sad[1], (WF*)(wc.pR[iDest]), (WF*)pRef, GM_NK, nM);
-               nextIter= maxRNF(ext.sad[1], ext.sad[0], GM_NK) > ext.termSADR;
+               WF mR= maxRNF(ext.sad[0], ext.sad[1], GM_NK);
+               if (ext.verbosity > 1) { printf("maxRNF() - %G\n", mR); }
+               nextIter= maxR > ext.termSADR;
             }
             if (ext.verbosity > 2) { printf("I%02d : mgm=", iter); dumpHMNF((void*)(wc.pR[iDest]), nM, GM_NK); }
          } while ((++iter < ext.maxIter) && nextIter);
+         if (ext.verbosity > 1) { printf("em1DNF() - %d iterations\n", iter); }
 
          if (pR != wc.pR[iDest]) { memcpy(pR, wc.pR[iDest], nM * sizeof(*pR)); }
          freeWC(&wc);
