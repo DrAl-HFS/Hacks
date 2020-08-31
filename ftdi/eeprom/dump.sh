@@ -1,1 +1,1 @@
-ftdi_eeprom --read-eeprom dump.cfg
+ftdi_eeprom --read-eeprom dump2232.cfg

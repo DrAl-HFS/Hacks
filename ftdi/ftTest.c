@@ -7,13 +7,15 @@
 #include <stdio.h>
 #include <unistd.h>
 
-// Useful:-
+// Useful resources:-
 // https://www.linux.com/training-tutorials/linux-kernel-module-management-101
+// (BITMODE_MPSSE)
+// https://gist.github.com/bjornvaktaren/d2461738ec44e3ad8b3bae4ce69445b4
 
 
 // USB device id values
 #define ID_VNDR_FTDI    0x0403
-#define ID_PROD_FT2232H	0x6010
+#define ID_PROD_FT2232	0x6010
 #define ID_PROD_FT232	0x6001
 
 #define SEC_US 1000000 // microseconds per second
@@ -45,36 +47,33 @@ void ftDumpDevInfo (FTCtx *pFC)
 
    printf("DevTyp %d\tbaud=%d\n", pFC->type, pFC->baudrate);
    printf("IF/Idx: %d, %d\n", pFC->interface, pFC->index);
-   printf("EEPROM: %p\n", pFC->eeprom);
+   printf("EEPROM: %p:\n", pFC->eeprom);
+   //for (int i= 0; i<=9; i++) { printf(" %02X", pFC->eeprom->cbus_function[i]); }
+   //printf("\n--\n");
+   //r= ftdi_eeprom_decode(pFC, 1);
    
    //ftdi_set_eeprom_value(pFC, 
    //for (int i= CBUS_FUNCTION_0; i<=CBUS_FUNCTION_9; i++)
    for (int i= VENDOR_ID; i<=PRODUCT_ID; i++)
    {
-      int val=0xFFF0 ^ i;
+      int val=0xA5FFFF00 ^ i;
       //r= ftdi_read_eeprom_location(pFC, i, &val);
       r= ftdi_get_eeprom_value(pFC, i, &val);
-      if (r >= 0)
-      { 
-         printf("%04x : %04x\n",i, val);
-      }
+      printf("r%d [%d] : %04x\n", r, i, val);
    }
-   //r= ftdi_eeprom_decode(pFC, 1);
 } // ftDumpDevInfo
 
-FTCtx *ftInitUSB (U16 devid, const enum ftdi_interface ifid)
+FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const U8 flags)
 {
-   FTCtx *pFC=NULL;
-   int r; 
-//static FTCtx gFC={0,};
-// if (ftdi_init(&gFC) >= 0) { pFC= &gFC; } else { printf("ERROR: ..%s() - r=%d\n", "init", r); }
-   pFC= ftdi_new();
+   FTCtx *pFC= ftdi_new();
    if (pFC)
    {
-      ftDumpLibInfo();
+      int r; 
+      
+      if (flags & 0x10) { ftDumpLibInfo(); }
 
       if (ifid > INTERFACE_ANY)
-      {
+      {  // Multiple interfaces on a device need setup before USB binding (for endpoint definition ?)
          r= ftdi_set_interface(pFC, ifid);
          if (r < 0) { printf("ERROR: ..%s(%d) -> %d\n", "set_interface", ifid, r); }
       }
@@ -84,7 +83,7 @@ FTCtx *ftInitUSB (U16 devid, const enum ftdi_interface ifid)
       if (r < 0) { printf("ERROR: ..%s() - r=%d\n", "usb_open", r); }
       else
       {
-         ftDumpDevInfo(pFC);
+         if (flags & 0x01) { ftDumpDevInfo(pFC); }
          return(pFC);
       }
    }
@@ -98,7 +97,7 @@ int ftSetModeIF (FTCtx *pFC, const enum ftdi_interface ifid, const U8 m, const e
    if (pFC)
    {
       if (ifid > INTERFACE_ANY)
-      {
+      {  // Seems not to work when multiple interfaces in use...
          r= ftdi_set_interface(pFC, ifid);
          if (r < 0) { printf("ERROR: ..%s(%d) -> %d\n", "set_interface", ifid, r); }
       }
@@ -108,6 +107,20 @@ int ftSetModeIF (FTCtx *pFC, const enum ftdi_interface ifid, const U8 m, const e
    }
    return(r >= 0);
 } // ftSetModeIF
+
+FTCtx *ftCleanup (FTCtx *pFC)
+{
+   if (pFC)
+   {
+      //ftSetModeIF(pFC, 0, 0, BITMODE_RESET);
+      int r= ftdi_usb_reset(pFC);
+      if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_reset", r); }
+      r= ftdi_usb_close(pFC);
+      if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_close", r); }
+      ftdi_free(pFC);
+   }
+   return(NULL);
+} // ftCleanup
 
 void flashBang (FTCtx *pFC, U8 state, const U8 flash, const int t, const int n)
 {
@@ -134,46 +147,62 @@ void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, U8 state, const U8 flash, const int t
    ftdi_write_data(pFCB, &state, sizeof(state));
 } // flashBang
 
-void ftCleanup (FTCtx *pFC)
+void devTest1 (const U16 devid, const U8 flags)
 {
+   FTCtx *pFCA, *pFCB= NULL;
+   
+   pFCA= ftInitUSB(devid, INTERFACE_A, flags);
+   if (pFCA)
+   {
+      if (ID_PROD_FT2232 == devid) { pFCB= ftInitUSB(devid, INTERFACE_B, flags); }
+
+      if (ftSetModeIF(pFCA, 0, 0xF0, BITMODE_BITBANG))
+      {
+         if (ftSetModeIF(pFCB, 0, 0xF0, BITMODE_BITBANG))
+         {
+            printf("flashBang2(A,B) ...\n");
+            flashBang2(pFCA, pFCB, 0x0, 0xF0, SEC_US/25, 100);
+         }
+         else
+         {
+            printf("flashBang(A) ...\n");
+            flashBang(pFCA, 0x0, 0xF0, SEC_US/25, 100);
+         }
+         printf("... usleep() ...\n");
+         usleep(100000);
+      }
+      pFCA= ftCleanup(pFCA);
+      pFCB= ftCleanup(pFCB);
+   }
+} // devTest1
+
+void burnEEPROM (const U16 devid, char m[], char p[], char s[])
+{
+   FTCtx *pFC= ftInitUSB(devid, 0, 0);
    if (pFC)
    {
-      //ftSetModeIF(pFC, 0, 0, BITMODE_RESET);
-      int r= ftdi_usb_reset(pFC);
-      if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_reset", r); }
-      r= ftdi_usb_close(pFC);
-      if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_close", r); }
-      ftdi_deinit(pFC);
+      const char fmt[]= "INFO: ..%s() - r=%d -> %s\n";
+      int r;
+      r= ftdi_erase_eeprom(pFC);
+      printf(fmt, "erase", r, ftdi_get_error_string(pFC));
+      r= ftdi_eeprom_initdefaults(pFC,m,p,s);
+      printf(fmt, "init", r, ftdi_get_error_string(pFC));
+      r= ftdi_eeprom_build(pFC);
+      printf(fmt, "build", r, ftdi_get_error_string(pFC));
+      r= ftdi_write_eeprom(pFC);
+      printf(fmt, "write", r, ftdi_get_error_string(pFC));
+      r= ftdi_eeprom_decode(pFC, 1);
+      printf(fmt, "decode", r, ftdi_get_error_string(pFC));
+      pFC= ftCleanup(pFC);
    }
-} // ftCleanup
-
-// BITMODE_MPSSE
-// https://gist.github.com/bjornvaktaren/d2461738ec44e3ad8b3bae4ce69445b4
+} // testEEPROM
 
 int main (int argc, char *argv[])
 {
-   U16 devid= ID_PROD_FT232; //ID_PROD_FT2232H;
-   FTCtx *pFCA, *pFCB= NULL;
-   
-   pFCA= ftInitUSB(devid, INTERFACE_A);
-   if (ID_PROD_FT2232H == devid) { pFCB= ftInitUSB(devid, INTERFACE_B); }
+   U16 id= ID_PROD_FT2232;
+   //burnEEPROM(ID_PROD_FT232, "232RL","DR","1");
+   //burnEEPROM(ID_PROD_FT2232, "18069A_P26", "2232H", "191216");
 
-   if (ftSetModeIF(pFCA, 0, 0xF0, BITMODE_BITBANG))
-   {
-      if (ftSetModeIF(pFCB, 0, 0xF0, BITMODE_BITBANG))
-      {
-         printf("flashBang2(A,B) ...\n");
-         flashBang2(pFCA, pFCB, 0x0, 0xF0, SEC_US/25, 100);
-      }
-      else
-      {
-         printf("flashBang(A) ...\n");
-         flashBang(pFCA, 0x0, 0xF0, SEC_US/25, 100);
-      }
-      printf("... usleep() ...\n");
-      usleep(100000);
-   }
-   ftCleanup(pFCA);
-   ftCleanup(pFCB);
+   devTest1(id, 0x11);
    return(0);
 } // main
