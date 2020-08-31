@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-# cvha.py
-# OpenCV HSV image analysis
+# cvha.py - OpenCV HSV image analysis
+# https://github.com/DrAl-HFS/  ???Hacks.git
+# Licence: GPL V3
+# (c) Project Contributors August-Sept 2020
 
 import sys
 import cv2
@@ -28,13 +30,13 @@ def ctTest (x):
     n= nrmf(r.ctypes.data_as(POINTER(c_double)), x.ctypes.data_as(POINTER(c_int)), x.size)
     return r, n
 
-def em1DNF (h,nR,nIter=10,verbosity=1):
+def em1DNF (h,nR,nIter=10,verbosity=2):
+    print("em1DNF() - nR=", nR)
     eml= CDLL("/home/al/dev/Hacks/CFrag/em.so")
     emf= eml.em1DNF
     emf.argtypes= [ POINTER(c_double), c_int, POINTER(c_double), c_int, c_int ]
     emf.restype= c_int
     r= numpy.zeros( nR*3, dtype=numpy.float64)
-    #print("em1DNF() - r[", type(r[0]), "h[", type(h[0]) )
     mf= nIter | (verbosity<<24)
     nR= emf(r.ctypes.data_as(POINTER(c_double)), nR, h.ctypes.data_as(POINTER(c_double)), h.size, mf)
     lr= []
@@ -156,6 +158,7 @@ if "__main__" == __name__ :
     if s > 0:
         pmf= numpy.float64(h[:,0]) * 1.0 / s;
         lgm= em1DNF(pmf,12)
+        print("[", len(lgm),"]=")
         for m in lgm:
             print(m)
 

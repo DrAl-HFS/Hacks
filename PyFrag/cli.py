@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-# cli.py
-# Simple hacky arg template code using <getopt>
+# cli.py - hacky arg template code using <getopt>
+# https://github.com/DrAl-HFS/  ???Hacks.git
+# Licence: GPL V3
+# (c) Project Contributors August-Sept 2020
+
 # TODO: assess <argparse> class for features
 # including automated error handling.
 
