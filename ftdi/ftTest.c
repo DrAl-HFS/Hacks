@@ -7,12 +7,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-// Useful resources:-
-// https://www.linux.com/training-tutorials/linux-kernel-module-management-101
-// (BITMODE_MPSSE)
-// https://gist.github.com/bjornvaktaren/d2461738ec44e3ad8b3bae4ce69445b4
-
-
 // USB device id values
 #define ID_VNDR_FTDI    0x0403
 #define ID_PROD_FT2232	0x6010
@@ -36,7 +30,7 @@ void ftDumpLibInfo (void)
 void ftDumpDevInfo (FTCtx *pFC)
 {
    //int r=-1;
-   //char mfr[64], desc[64], ser[64]; 
+   //char mfr[64], desc[64], ser[64];
    //r= ftdi_usb_get_strings(pFC, usb_dev???, mfr, sizeof(mfr), desc, sizeof(desc), ser, sizeof(ser));
    //r= ftdi_eeprom_get_strings(pFC, mfr, sizeof(mfr)-1, desc, sizeof(desc)-1, ser, sizeof(ser)-1);
    //if (r >= 0) { printf("M,D,S:-\n%s\n%s\n%s\n",mfr,desc,ser); }
@@ -51,10 +45,10 @@ void ftDumpDevInfo (FTCtx *pFC)
    r= ftdi_read_eeprom(pFC);
    printf("EEPROM: %d -> %p:\n", r, pFC->eeprom);
    for (int fid= CBUS_FUNCTION_0; fid<=CBUS_FUNCTION_9; fid++)
-   { 
+   {
       int val= 0xA5FFFF00 ^ fid;
       r= ftdi_get_eeprom_value(pFC, fid, &val);
-      printf("[%d] - %d - 0x%X\n", fid, r, val); 
+      printf("[%d] - %d - 0x%X\n", fid, r, val);
    }
    printf("\n--\n");
 
@@ -73,8 +67,8 @@ FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const U8 flag
    FTCtx *pFC= ftdi_new();
    if (pFC)
    {
-      int r; 
-      
+      int r;
+
       if (flags & 0x10) { ftDumpLibInfo(); }
 
       if (ifid > INTERFACE_ANY)
@@ -82,7 +76,7 @@ FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const U8 flag
          r= ftdi_set_interface(pFC, ifid);
          if (r < 0) { printf("ERROR: ..%s(%d) -> %d\n", "set_interface", ifid, r); }
       }
-      
+
       r= ftdi_usb_open(pFC, ID_VNDR_FTDI, devid);
 
       if (r < 0) { printf("ERROR: ..%s() - r=%d\n", "usb_open", r); }
@@ -155,7 +149,7 @@ void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, U8 state, const U8 flash, const int t
 void devTest1 (const U16 devid, const U8 flags)
 {
    FTCtx *pFCA, *pFCB= NULL;
-   
+
    pFCA= ftInitUSB(devid, INTERFACE_A, flags);
    if (pFCA)
    {
@@ -183,7 +177,7 @@ void devTest1 (const U16 devid, const U8 flags)
 
 // Unclear how to make "ftdi_eeprom" utility burn a previously unitialised
 // EEPROM ( perhaps multiple flags e.g. --erase-eeprom --build-eeprom
-// --flash-eeprom would work? ) 
+// --flash-eeprom would work? )
 // However, the following hack seems to work well...
 void burnEEPROM (const U16 devid, char m[], char p[], char s[])
 {
@@ -204,7 +198,7 @@ void burnEEPROM (const U16 devid, char m[], char p[], char s[])
       printf(fmt, "decode", r, ftdi_get_error_string(pFC));
       pFC= ftCleanup(pFC);
    }
-} // testEEPROM
+} // burnEEPROM
 
 int main (int argc, char *argv[])
 {
