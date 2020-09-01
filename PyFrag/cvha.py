@@ -146,21 +146,21 @@ def procENP (imBGR8,bins=256):
     return h
 
 if "__main__" == __name__ :
-    if len(sys.argv) > 1:
-        imBGR8= cv2.imread(sys.argv[1]) #, cv2.IMREAD_GRAYSCALE)
-    else:
+    if len(sys.argv) <= 1:
         print("Usage:",sys.argv[0],"<image-file>")
+    else:
+        imBGR8= cv2.imread(sys.argv[1]) #, cv2.IMREAD_GRAYSCALE)
         #imHSV8= cv2.cvtColor(imBGR8, cv2.COLOR_BGR2HSV)
         #bh= info(imHSV8,None)
-    h= procECV(imBGR8)
-    s= numpy.sum(h)
-    print( "sum=", s)
-    if s > 0:
-        pmf= numpy.float64(h[:,0]) * 1.0 / s;
-        lgm= em1DNF(pmf,12)
-        print("[", len(lgm),"]=")
-        for m in lgm:
-            print(m)
+        h= procECV(imBGR8)
+        s= numpy.sum(h)
+        print( "sum=", s)
+        if s > 0:
+            pmf= numpy.float64(h[:,0]) * 1.0 / s;
+            lgm= em1DNF(pmf,12)
+            print("[", len(lgm),"]=")
+            for m in lgm:
+                print(m)
 
     if False:
         print("---")
