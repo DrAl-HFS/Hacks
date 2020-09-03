@@ -32,7 +32,7 @@ to main chip (FT2232H) is obscured.
 
 OK: uart-loop, bit-bang.
 
-TODO: investigate MPSSE (for I2C, SPI, FIFO, JTAG) to beter understand
+TODO: investigate MPSSE (for I2C, SPI, FIFO, JTAG) to better understand
 limitations and configuration issues.
 
 Found numerous copies of open source MPSSE utility library in C with
@@ -45,10 +45,9 @@ to be actively maintained:-
 
  \- Glitches in Python3 support. Fix:
  
-     * edit examples, bracketing "print", "exception" etc.
+     * edit examples: "print -> print()", "Exception -> ValueError()" etc.
      
      * verify/create folder "/usr/local/lib/python3.7/site-packages" (before
-     
-     * executing "make install") then add path as necessary:
+       executing "make install") then add path as necessary:
        e.g. "export PYTHONPATH=/usr/local/lib/python3.7/site-packages:$PYTHONPATH" (shell/login script)
 
