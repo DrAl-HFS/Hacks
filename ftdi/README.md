@@ -12,7 +12,7 @@ kernel module ftdi_sio. The devices /dev/ttyUSB# simply disappear when
 libftdi is used to take control of the relevant USB device endpoint.
 
 
-# Additional setup & resources
+# Additional setup
 
 (apt/yum/whatever) install libftdi1* ftdi-eeprom
 
@@ -24,6 +24,7 @@ libftdi is used to take control of the relevant USB device endpoint.
 # Test HW:
 
 FT232RL branded "Deek Robot", looks much like an old AdaFruit design.
+
 FT2232H unbranded, features 74HC585 driving indicator LED's but serial
 connection to the FT2232H is not visible.
 
@@ -32,16 +33,19 @@ connection to the FT2232H is not visible.
 OK: uart-loop, bit-bang.
 
 TODO: investigate MPSSE (for I2C, SPI, FIFO, JTAG) to beter understand
-limitations and configuration issues. Found numerous copies of open source
-MPSSE utility library in C with Python bindings. Some are many years out of
-date but at least one seems to be actively maintained:-
+limitations and configuration issues.
+
+Found numerous copies of open source MPSSE utility library in C with
+Python bindings. Some are many years out of date but at least one seems
+to be actively maintained:-
 
  https://github.com/l29ah/libmpsse.git
 
- /+ Clear instructions in INSTALL.md
- /- Glitches in Python3 support. Fix:
-     edit examples, bracketing "print", "exception" etc.
-     verify/create folder "/usr/local/lib/python3.7/site-packages" (before
-     executing "make install") then add path as necessary:
+ \+ Clear instructions in INSTALL.md
+
+ \- Glitches in Python3 support. Fix:
+     * edit examples, bracketing "print", "exception" etc.
+     * verify/create folder "/usr/local/lib/python3.7/site-packages" (before
+     * executing "make install") then add path as necessary:
        e.g. "export PYTHONPATH=/usr/local/lib/python3.7/site-packages:$PYTHONPATH" (shell/login script)
 
