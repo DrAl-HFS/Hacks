@@ -9,6 +9,7 @@
 
 // USB device id values
 #define ID_VNDR_FTDI    0x0403
+#define ID_PROD_FT4232  0x6014
 #define ID_PROD_FT2232	0x6010
 #define ID_PROD_FT232	0x6001
 
@@ -18,6 +19,16 @@ typedef unsigned char	U8;
 typedef unsigned short	U16;
 typedef unsigned int    U32;
 typedef struct ftdi_context FTCtx;
+
+int ftDevPortCount (const U16 devid)
+{
+   switch(devid)
+   {
+      case ID_PROD_FT2232 : return(2);
+      case ID_PROD_FT4232 : return(4);
+   }
+   return(1);
+} // ftDevPortCount
 
 void ftDumpLibInfo (void)
 {
@@ -153,7 +164,7 @@ void devTest1 (const U16 devid, const U8 flags)
    pFCA= ftInitUSB(devid, INTERFACE_A, flags);
    if (pFCA)
    {
-      if (ID_PROD_FT2232 == devid) { pFCB= ftInitUSB(devid, INTERFACE_B, 0); }
+      if (ftDevPortCount(devid) > 1) { pFCB= ftInitUSB(devid, INTERFACE_B, 0); }
 
       if (ftSetModeIF(pFCA, 0, 0xF0, BITMODE_BITBANG))
       {

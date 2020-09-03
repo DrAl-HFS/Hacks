@@ -23,14 +23,25 @@ libftdi is used to take control of the relevant USB device endpoint.
 
 # Test HW:
 
-"Deek Robot" (?) FT232RL, unbranded FT2232H from HK seller.
+FT232RL branded "Deek Robot", looks much like an old AdaFruit design.
+FT2232H unbranded, features 74HC585 driving indicator LED's but serial
+connection to the FT2232H is not visible.
 
 # Testing
 
 OK: uart-loop, bit-bang.
 
 TODO: investigate MPSSE (for I2C, SPI, FIFO, JTAG) to beter understand
-limitations and configuration issues. Found existing MPSSE utility library
-(in C with python bindings) but haven't properly evaluated yet:-
+limitations and configuration issues. Found numerous copies of open source
+MPSSE utility library in C with Python bindings. Some are many years out of
+date but at least one seems to be actively maintained:-
 
- https://github.com/SjB/libmpsse
+ https://github.com/l29ah/libmpsse.git
+
+ /+ Clear instructions in INSTALL.md
+ /- Glitches in Python3 support. Fix:
+     edit examples, bracketing "print", "exception" etc.
+     verify/create folder "/usr/local/lib/python3.7/site-packages" (before
+     executing "make install") then add path as necessary:
+       e.g. "export PYTHONPATH=/usr/local/lib/python3.7/site-packages:$PYTHONPATH" (shell/login script)
+
