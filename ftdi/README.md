@@ -3,9 +3,10 @@ Experiments with FTDI USB-serial/parallel bridge adaptors.
 
 # Notes:
 Unable to initialise EEPROM using /usr/bin/ftdi_eeprom. Got started
-using some hacky DIY code instead. EEPROM seems to be a critical part
-of MPSSE - looks like setup has to happen at boot time. This could be
-explained by some form of PLD/FPGA within FTDI devices?
+using some hacky DIY code instead. Looks like EEPROM can be used to
+configure MPSSE features at boot time, and seems to be used for app
+key data e.g. on commercial FPGA toolkit. Perhaps useful to understand
+this better?
 
 Despite lingering rumours, use of libftdi is completely unaffected by
 kernel module ftdi_sio. The devices /dev/ttyUSB# simply disappear when
@@ -34,6 +35,9 @@ OK: uart-loop, bit-bang.
 
 TODO: investigate MPSSE (for I2C, SPI, FIFO, JTAG) to better understand
 limitations and configuration issues.
+
+
+# Existing Library
 
 Found numerous copies of open source MPSSE utility library in C with
 Python bindings. Some are many years out of date but at least one seems
