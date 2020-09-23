@@ -13,11 +13,11 @@ kernel module ftdi_sio. The devices /dev/ttyUSB# simply disappear when
 libftdi is used to take control of the relevant USB device endpoint.
 
 
-## Additional setup ##
+## Additional setup & resources ##
 
 (apt/yum/whatever) install libftdi1* ftdi-eeprom
 
-## Additional resources: ## ### (stuff that seemed relevant at some point...) ###
+### (stuff that seemed relevant at some point...) ###
 
  https://gist.github.com/bjornvaktaren/d2461738ec44e3ad8b3bae4ce69445b4
 
