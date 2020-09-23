@@ -31,7 +31,7 @@ to main chip (FT2232H) is obscured.
 
 # Testing
 
-OK: uart-loop, bit-bang.
+OK: UART local loop-back (picocom). Bit-bang LED flasher.
 
 TODO: investigate MPSSE (for I2C, SPI, FIFO, JTAG) to better understand
 limitations and configuration issues.
