@@ -3,19 +3,29 @@
 # Licence: GPL V3
 # (c) Project Contributors August-Sept 2020
 
-.PHONY : run
+.PHONY : all
 
 CC := gcc -Wall
 DBGDEF := -g -O0
 
-SRC := ftTest.c
-TARGET := ft
 MAKEFILE := Makefile
-LIBDEF := -lftdi1
 
-$(TARGET) : $(SRC) $(MAKEFILE)
-	$(CC) $(DBGDEF) $(SRC) $(LIBDEF) -o $(TARGET)
+# TARGET := ft
+FTSRC := ftTest.c
+FTLIBDEF := -lftdi1
 
-run : $(TARGET)
-	./$(TARGET)
+MTSRC := i2cMPSSE.c
+MTLIBDEF := -lmpsse
+
+
+ft : $(FTSRC) $(MAKEFILE)
+	$(CC) $(DBGDEF) $(FTSRC) $(FTLIBDEF) -o $@
+
+mt : $(MTSRC) $(MAKEFILE)
+	$(CC) $(DBGDEF) $(MTSRC) $(MTLIBDEF) -o $@
+
+all : ft mt
+
+#run : $(TARGET)
+#	./$(TARGET)
 

@@ -57,3 +57,6 @@ to have been maintained:-
        executing "make install") then add path as necessary:
        e.g. "export PYTHONPATH=/usr/local/lib/python3.7/site-packages:$PYTHONPATH" (shell/login script)
 
+ \- Python3 wrapper execution fails on recent headless (Raspi-OS, Buster, 20/08/20) installation:
+
+     * ImportError: /usr/local/lib/python3.7/site-packages/_pylibmpsse.so: undefined symbol: PyInstance_Type
