@@ -73,14 +73,14 @@ void ftDumpDevInfo (FTCtx *pFC)
 */
 } // ftDumpDevInfo
 
-FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const U8 flags)
+FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const int br, const U8 flags)
 {
    FTCtx *pFC= ftdi_new();
    if (pFC)
    {
       int r;
 
-      if (flags & 0x10) { ftDumpLibInfo(); }
+      if (flags & (1<<7)) { ftDumpLibInfo(); }
 
       if (ifid > INTERFACE_ANY)
       {  // Multiple interfaces on a device need setup before USB binding (for endpoint definition ?)
@@ -93,7 +93,8 @@ FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const U8 flag
       if (r < 0) { printf("ERROR: ..%s() - r=%d\n", "usb_open", r); }
       else
       {
-         if (flags & 0x01) { ftDumpDevInfo(pFC); }
+         if (br > 0) { r= ftdi_set_baudrate(pFC,br); }
+         if (flags & (1<<6)) { ftDumpDevInfo(pFC); }
          return(pFC);
       }
    }
@@ -120,10 +121,12 @@ int ftSetModeIF (FTCtx *pFC, const enum ftdi_interface ifid, const U8 m, const e
 
 FTCtx *ftCleanup (FTCtx *pFC)
 {
+   int r= -1;
    if (pFC)
    {
-      //ftSetModeIF(pFC, 0, 0, BITMODE_RESET);
-      int r= ftdi_usb_reset(pFC);
+      r= ftSetModeIF(pFC, 0, 0, BITMODE_RESET);
+      r= ftdi_disable_bitbang(pFC);	// Waste of time? Neither causes SIO reload...
+      r= ftdi_usb_reset(pFC);
       if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_reset", r); }
       r= ftdi_usb_close(pFC);
       if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_close", r); }
@@ -132,21 +135,27 @@ FTCtx *ftCleanup (FTCtx *pFC)
    return(NULL);
 } // ftCleanup
 
-void flashBang (FTCtx *pFC, U8 state, const U8 flash, const int t, const int n)
+void flashBang (FTCtx *pFC, const U8 flash, const int t, const int n)
 {
+   U8 state[256];
    for (int i=0; i<n; i++)
    {
-      ftdi_write_data(pFC, &state, sizeof(state));
+      state[0]= i << 4;
+      for (int j= 1; j<sizeof(state); j++) { state[j]= state[j-1]; }
+      state[0]^= 0xFF;
+      ftdi_write_data(pFC, state, sizeof(state));
       usleep(t);
-      state^= flash;
    }
-   if (0 == state) { ftdi_write_data(pFC, &state, sizeof(state)); }
+   state[0]= 0;
+   ftdi_write_data(pFC, state, 1);
 } // flashBang
 
-void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, U8 state, const U8 flash, const int t, const int n)
+void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, const U8 flash, const int t, const int n)
 {
+   U8 state;
    for (int i=0; i<n; i++)
    {
+      state= i<<4;
       ftdi_write_data(pFCA, &state, sizeof(state));
       state^= flash;
       ftdi_write_data(pFCB, &state, sizeof(state));
@@ -160,23 +169,24 @@ void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, U8 state, const U8 flash, const int t
 void devTest1 (const U16 devid, const U8 flags)
 {
    FTCtx *pFCA, *pFCB= NULL;
+   const U8 outMask= 0xF0;
 
-   pFCA= ftInitUSB(devid, INTERFACE_A, flags);
+   pFCA= ftInitUSB(devid, INTERFACE_A, 1200, flags & 0xF0);
    if (pFCA)
    {
-      if (ftDevPortCount(devid) > 1) { pFCB= ftInitUSB(devid, INTERFACE_B, 0); }
+      if ((flags & 0x1) && (ftDevPortCount(devid) > 1)) { pFCB= ftInitUSB(devid, INTERFACE_B, 0, 0); }
 
-      if (ftSetModeIF(pFCA, 0, 0xF0, BITMODE_BITBANG))
+      if (ftSetModeIF(pFCA, INTERFACE_A, outMask, BITMODE_BITBANG))
       {
-         if (ftSetModeIF(pFCB, 0, 0xF0, BITMODE_BITBANG))
+         if (ftSetModeIF(pFCB, INTERFACE_B, outMask, BITMODE_BITBANG))
          {
             printf("flashBang2(A,B) ...\n");
-            flashBang2(pFCA, pFCB, 0x0, 0xF0, SEC_US/25, 100);
+            flashBang2(pFCA, pFCB, 0xF0, SEC_US/25, 100);
          }
          else
          {
             printf("flashBang(A) ...\n");
-            flashBang(pFCA, 0x0, 0xF0, SEC_US/25, 100);
+            flashBang(pFCA, 0xF0, SEC_US/25, 100);
          }
          printf("... usleep() ...\n");
          usleep(100000);
@@ -192,7 +202,7 @@ void devTest1 (const U16 devid, const U8 flags)
 // However, the following hack seems to work well...
 void burnEEPROM (const U16 devid, char m[], char p[], char s[])
 {
-   FTCtx *pFC= ftInitUSB(devid, 0, 0);
+   FTCtx *pFC= ftInitUSB(devid, 0, 0, 0);
    if (pFC)
    {
       const char fmt[]= "INFO: ..%s() - r=%d -> %s\n";
@@ -217,6 +227,6 @@ int main (int argc, char *argv[])
    //burnEEPROM(ID_PROD_FT232, "DR","232RL","1");
    //burnEEPROM(ID_PROD_FT2232, "18069A_P26", "2232H", "191216");
 
-   devTest1(id, 0x11);
+   devTest1(id, 0xF0);
    return(0);
 } // main

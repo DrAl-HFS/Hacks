@@ -3,14 +3,13 @@
 # Licence: GPL V3
 # (c) Project Contributors August-Sept 2020
 
-.PHONY : all
+.PHONY : all run
 
 CC := gcc -Wall
 DBGDEF := -g -O0
 
 MAKEFILE := Makefile
 
-# TARGET := ft
 FTSRC := ftTest.c
 FTLIBDEF := -lftdi1
 
@@ -26,6 +25,9 @@ mt : $(MTSRC) $(MAKEFILE)
 
 all : ft mt
 
-#run : $(TARGET)
-#	./$(TARGET)
+
+RUN_TARGET := ft
+
+run : $(RUN_TARGET)
+	./$(RUN_TARGET)
 
