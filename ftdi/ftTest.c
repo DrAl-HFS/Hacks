@@ -138,11 +138,11 @@ FTCtx *ftCleanup (FTCtx *pFC)
 void flashBang (FTCtx *pFC, const U8 flash, const int t, const int n)
 {
    U8 state[256];
+   for (int j= 1; j<sizeof(state); j++) { state[j]= j; }
    for (int i=0; i<n; i++)
    {
       state[0]= i << 4;
-      for (int j= 1; j<sizeof(state); j++) { state[j]= state[j-1]; }
-      state[0]^= 0xFF;
+      state[0xFF]= state[0] ^ 0xFF;
       ftdi_write_data(pFC, state, sizeof(state));
       usleep(t);
    }
