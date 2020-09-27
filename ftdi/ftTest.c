@@ -13,7 +13,7 @@
 #define ID_PROD_FT2232	0x6010
 #define ID_PROD_FT232	0x6001
 
-#define SEC_US 1000000 // microseconds per second
+#define MICRO_TICKS 1000000 // microseconds per second
 
 typedef unsigned char	U8;
 typedef unsigned short	U16;
@@ -119,38 +119,49 @@ int ftSetModeIF (FTCtx *pFC, const enum ftdi_interface ifid, const U8 m, const e
    return(r >= 0);
 } // ftSetModeIF
 
-FTCtx *ftCleanup (FTCtx *pFC)
+FTCtx *ftCleanup (FTCtx *pFC, const U8 flags)
 {
    int r= -1;
    if (pFC)
    {
-      r= ftSetModeIF(pFC, 0, 0, BITMODE_RESET);
-      r= ftdi_disable_bitbang(pFC);	// Waste of time? Neither causes SIO reload...
-      r= ftdi_usb_reset(pFC);
-      if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_reset", r); }
-      r= ftdi_usb_close(pFC);
-      if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_close", r); }
+      if (0 == (flags & 0x1)) { r= ftSetModeIF(pFC, 0, 0, BITMODE_RESET); }
+      if (0 == (flags & 0x2))
+      {
+         r= ftdi_disable_bitbang(pFC);	// Waste of time? Neither causes SIO reload...
+         if (r < 0) { printf("ERROR: ..%s() -> %d\n", "disable_bitbang", r); }
+      }
+      if (0 == (flags & 0x4))
+      {
+         r= ftdi_usb_reset(pFC);
+         if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_reset", r); }
+      }
+      if (0 == (flags & 0x8))
+      {
+         r= ftdi_usb_close(pFC);
+         if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_close", r); }
+      }
       ftdi_free(pFC);
    }
    return(NULL);
 } // ftCleanup
 
-void flashBang (FTCtx *pFC, const U8 flash, const int t, const int n)
+void flashBang (FTCtx *pFC, const U8 flash, const int usIvl, const int n)
 {
    U8 state[256];
-   for (int j= 1; j<sizeof(state); j++) { state[j]= j; }
+   //printf("flashBang() - sizeof(state)=%d\n", sizeof(state));
+   for (int j= 1; j<sizeof(state); j++) { state[j]= j; } //0xFF; }
    for (int i=0; i<n; i++)
    {
-      state[0]= i << 4;
-      state[0xFF]= state[0] ^ 0xFF;
-      ftdi_write_data(pFC, state, sizeof(state));
-      usleep(t);
+      state[0]= i;
+      //state[0xFF]= state[0] ^ 0xFF;
+      ftdi_write_data(pFC, state, sizeof(state[0]));
+      usleep(usIvl);
    }
-   state[0]= 0;
+   state[0]= 0xFF;
    ftdi_write_data(pFC, state, 1);
 } // flashBang
 
-void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, const U8 flash, const int t, const int n)
+void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, const U8 flash, const int usIvl, const int n)
 {
    U8 state;
    for (int i=0; i<n; i++)
@@ -159,7 +170,7 @@ void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, const U8 flash, const int t, const in
       ftdi_write_data(pFCA, &state, sizeof(state));
       state^= flash;
       ftdi_write_data(pFCB, &state, sizeof(state));
-      usleep(t);
+      usleep(usIvl);
    }
    state= 0;
    ftdi_write_data(pFCA, &state, sizeof(state));
@@ -169,7 +180,9 @@ void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, const U8 flash, const int t, const in
 void devTest1 (const U16 devid, const U8 outMask, const int baudRate, const U8 flags)
 {
    FTCtx *pFCA, *pFCB= NULL;
+   long usIvl= MICRO_TICKS/18.75;
 
+   if (baudRate > 0) { printf("Requesting serial rate %d bd -> %d Hz in BitBang mode\n", baudRate, baudRate*16); }
    pFCA= ftInitUSB(devid, INTERFACE_A, baudRate, flags);
    if (pFCA)
    {
@@ -180,18 +193,18 @@ void devTest1 (const U16 devid, const U8 outMask, const int baudRate, const U8 f
          if (ftSetModeIF(pFCB, INTERFACE_B, outMask, BITMODE_BITBANG))
          {
             printf("flashBang2(A,B) ...\n");
-            flashBang2(pFCA, pFCB, outMask, SEC_US/25, 100);
+            flashBang2(pFCA, pFCB, outMask, usIvl, 100);
          }
          else
          {
             printf("flashBang(A) ...\n");
-            flashBang(pFCA, outMask, SEC_US/25, 100);
+            flashBang(pFCA, outMask, usIvl, 100);
          }
          printf("... usleep() ...\n");
-         usleep(100000);
+         usleep(usIvl);
       }
-      pFCA= ftCleanup(pFCA);
-      pFCB= ftCleanup(pFCB);
+      pFCA= ftCleanup(pFCA, 0x3);
+      pFCB= ftCleanup(pFCB, 0x3);
    }
 } // devTest1
 
@@ -216,7 +229,8 @@ void burnEEPROM (const U16 devid, char m[], char p[], char s[])
       printf(fmt, "write", r, ftdi_get_error_string(pFC));
       r= ftdi_eeprom_decode(pFC, 1);
       printf(fmt, "decode", r, ftdi_get_error_string(pFC));
-      pFC= ftCleanup(pFC);
+      pFC= ftCleanup(pFC, 0);
+      pFC= ftCleanup(pFC, 0);
    }
 } // burnEEPROM
 
@@ -225,7 +239,7 @@ int main (int argc, char *argv[])
    U16 id= ID_PROD_FT2232;
    //burnEEPROM(ID_PROD_FT232, "DR","232RL","1");
    //burnEEPROM(ID_PROD_FT2232, "18069A_P26", "2232H", "191216");
-
-   devTest1(id, 0xFF, 120, 0xF1);
+   // 300 seems to be lowest supported rate (4.8kHz bit-bang = 18.75 * 256B)
+   devTest1(id, 0xFF, 300, 0xF0);
    return(0);
 } // main
