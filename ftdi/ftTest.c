@@ -166,27 +166,26 @@ void flashBang2 (FTCtx *pFCA, FTCtx *pFCB, const U8 flash, const int t, const in
    ftdi_write_data(pFCB, &state, sizeof(state));
 } // flashBang
 
-void devTest1 (const U16 devid, const U8 flags)
+void devTest1 (const U16 devid, const U8 outMask, const int baudRate, const U8 flags)
 {
    FTCtx *pFCA, *pFCB= NULL;
-   const U8 outMask= 0xF0;
 
-   pFCA= ftInitUSB(devid, INTERFACE_A, 1200, flags & 0xF0);
+   pFCA= ftInitUSB(devid, INTERFACE_A, baudRate, flags);
    if (pFCA)
    {
-      if ((flags & 0x1) && (ftDevPortCount(devid) > 1)) { pFCB= ftInitUSB(devid, INTERFACE_B, 0, 0); }
+      if ((flags & 0x1) && (ftDevPortCount(devid) > 1)) { pFCB= ftInitUSB(devid, INTERFACE_B, baudRate, flags); }
 
       if (ftSetModeIF(pFCA, INTERFACE_A, outMask, BITMODE_BITBANG))
       {
          if (ftSetModeIF(pFCB, INTERFACE_B, outMask, BITMODE_BITBANG))
          {
             printf("flashBang2(A,B) ...\n");
-            flashBang2(pFCA, pFCB, 0xF0, SEC_US/25, 100);
+            flashBang2(pFCA, pFCB, outMask, SEC_US/25, 100);
          }
          else
          {
             printf("flashBang(A) ...\n");
-            flashBang(pFCA, 0xF0, SEC_US/25, 100);
+            flashBang(pFCA, outMask, SEC_US/25, 100);
          }
          printf("... usleep() ...\n");
          usleep(100000);
@@ -227,6 +226,6 @@ int main (int argc, char *argv[])
    //burnEEPROM(ID_PROD_FT232, "DR","232RL","1");
    //burnEEPROM(ID_PROD_FT2232, "18069A_P26", "2232H", "191216");
 
-   devTest1(id, 0xF0);
+   devTest1(id, 0xFF, 120, 0xF1);
    return(0);
 } // main
