@@ -15,10 +15,36 @@
 
 #define MICRO_TICKS 1000000 // microseconds per second
 
+#ifndef PLATFORM_H
 typedef unsigned char	U8;
 typedef unsigned short	U16;
 typedef unsigned int    U32;
+typedef int Bool; // Boolean
+#endif
+
+#ifndef REPORT_H
+#define LOG printf
+#endif
+
 typedef struct ftdi_context FTCtx;
+
+static FTCtx *gpFC=NULL;
+
+Bool ftNoError (const char id[], int r, const void *pArg)
+{
+   if (r < 0)
+   {
+      const char *pES=NULL;
+      char sArg[32];
+      if (pArg) { snprintf(sArg, sizeof(sArg)-1, "%d", ((int*)pArg)[0]); } else { sArg[0]= 0; }
+      if (gpFC) { pES= ftdi_get_error_string(gpFC); }
+      if (NULL == pES) { pES= ""; }
+      printf("ERROR: ..%s(%s) -> %d %s\n", id, sArg, r, pES);
+      return(0);
+   }
+   //else
+   return(1);
+} // ftNoError
 
 int ftDevPortCount (const U16 devid)
 {
@@ -34,8 +60,7 @@ void ftDumpLibInfo (void)
 {
    struct ftdi_version_info v={0,};
    v= ftdi_get_library_version();
-   printf("libftdi V%d.%d.%d\n", v.major, v.minor, v.micro);
-   //else { printf("ERROR: ..%s() - r=%d\n", "get_library_version", r); }
+   LOG("libftdi V%d.%d.%d\n", v.major, v.minor, v.micro);
 } // ftDumpLibInfo
 
 void ftDumpDevInfo (FTCtx *pFC)
@@ -44,14 +69,13 @@ void ftDumpDevInfo (FTCtx *pFC)
    //char mfr[64], desc[64], ser[64];
    //r= ftdi_usb_get_strings(pFC, usb_dev???, mfr, sizeof(mfr), desc, sizeof(desc), ser, sizeof(ser));
    //r= ftdi_eeprom_get_strings(pFC, mfr, sizeof(mfr)-1, desc, sizeof(desc)-1, ser, sizeof(ser)-1);
-   //if (r >= 0) { printf("M,D,S:-\n%s\n%s\n%s\n",mfr,desc,ser); }
+   //if (r >= 0) { LOG("M,D,S:-\n%s\n%s\n%s\n",mfr,desc,ser); }
 
    //U32 id; r= ftdi_read_chipid(&gFC, &id);
-   //if (r >= 0) { printf("ID: %X\n", id); }
-   //else { printf("ERROR: ..%s() - r=%d\n", "read_chipid", r); }
-
-   printf("DevTyp %d\tbaud=%d\n", pFC->type, pFC->baudrate);
-   printf("IF/Idx: %d, %d\n", pFC->interface, pFC->index);
+   //if (r >= 0) { LOG("ID: %X\n", id); }
+   //else { LOG("ERROR: ..%s() - r=%d\n", "read_chipid", r); }
+   LOG("DevTyp %d\trate= %d bd (Clk %d Hz)\n", pFC->type, pFC->baudrate, 16 * pFC->baudrate);
+   LOG("IF/Idx: %d, %d\n", pFC->interface, pFC->index);
 /* Nothing useful happening here...
    r= ftdi_read_eeprom(pFC);
    printf("EEPROM: %d -> %p:\n", r, pFC->eeprom);
@@ -59,16 +83,16 @@ void ftDumpDevInfo (FTCtx *pFC)
    {
       int val= 0xA5FFFF00 ^ fid;
       r= ftdi_get_eeprom_value(pFC, fid, &val);
-      printf("[%d] - %d - 0x%X\n", fid, r, val);
+      LOG("[%d] - %d - 0x%X\n", fid, r, val);
    }
-   printf("\n--\n");
+   LOG("\n--\n");
 
    for (int i= VENDOR_ID; i<=PRODUCT_ID; i++)
    {
       int val=0xA5FFFF00 ^ i;
       //r= ftdi_read_eeprom_location(pFC, i, &val);
       r= ftdi_get_eeprom_value(pFC, i, &val);
-      printf("r%d [%d] : %04x\n", r, i, val);
+      LOG("r%d [%d] : %04x\n", r, i, val);
    }
 */
 } // ftDumpDevInfo
@@ -80,20 +104,24 @@ FTCtx *ftInitUSB (const U16 devid, const enum ftdi_interface ifid, const int br,
    {
       int r;
 
+      if (NULL == gpFC) { gpFC= pFC; }
       if (flags & (1<<7)) { ftDumpLibInfo(); }
 
       if (ifid > INTERFACE_ANY)
       {  // Multiple interfaces on a device need setup before USB binding (for endpoint definition ?)
          r= ftdi_set_interface(pFC, ifid);
-         if (r < 0) { printf("ERROR: ..%s(%d) -> %d\n", "set_interface", ifid, r); }
+         ftNoError("set_interface", r, &ifid);
       }
 
       r= ftdi_usb_open(pFC, ID_VNDR_FTDI, devid);
 
-      if (r < 0) { printf("ERROR: ..%s() - r=%d\n", "usb_open", r); }
-      else
+      if (ftNoError("usb_open", r, &devid))
       {
-         if (br > 0) { r= ftdi_set_baudrate(pFC,br); }
+         if (br > 0)
+         {
+            r= ftdi_set_baudrate(pFC, br);
+            ftNoError("set_baudrate", r, &br);
+         }
          if (flags & (1<<6)) { ftDumpDevInfo(pFC); }
          return(pFC);
       }
@@ -110,11 +138,11 @@ int ftSetModeIF (FTCtx *pFC, const enum ftdi_interface ifid, const U8 m, const e
       if (ifid > INTERFACE_ANY)
       {  // Seems not to work when multiple interfaces in use...
          r= ftdi_set_interface(pFC, ifid);
-         if (r < 0) { printf("ERROR: ..%s(%d) -> %d\n", "set_interface", ifid, r); }
+         ftNoError("set_interface", r, &ifid);
       }
-      if (0 != bmid) { ftdi_set_bitmode(pFC, 0, 0); } // reset
+      if (0 != bmid) { r= ftdi_set_bitmode(pFC, 0, 0); } // reset
       r= ftdi_set_bitmode(pFC, m, bmid);
-      if (r < 0) { printf("ERROR: ..%s(%d) -> %d\n", "set_bitmode", bmid, r); }
+      ftNoError("set_bitmode", r, &bmid);
    }
    return(r >= 0);
 } // ftSetModeIF
@@ -128,36 +156,38 @@ FTCtx *ftCleanup (FTCtx *pFC, const U8 flags)
       if (0 == (flags & 0x2))
       {
          r= ftdi_disable_bitbang(pFC);	// Waste of time? Neither causes SIO reload...
-         if (r < 0) { printf("ERROR: ..%s() -> %d\n", "disable_bitbang", r); }
+         ftNoError("disable_bitbang", r, NULL);
       }
       if (0 == (flags & 0x4))
       {
          r= ftdi_usb_reset(pFC);
-         if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_reset", r); }
+         ftNoError("usb_reset", r, NULL);
       }
       if (0 == (flags & 0x8))
       {
          r= ftdi_usb_close(pFC);
-         if (r < 0) { printf("ERROR: ..%s() -> %d\n", "usb_close", r); }
+         ftNoError("usb_close", r, NULL);
       }
       ftdi_free(pFC);
+      if (gpFC == pFC) { gpFC= NULL; }
    }
    return(NULL);
 } // ftCleanup
 
-void flashBang (FTCtx *pFC, const U8 flash, const int usIvl, const int n)
+void flashBang (FTCtx *pFC, const U8 flash, const int usIvl, const int nIvl)
 {
+   int nS= 256;
    U8 state[256];
    //printf("flashBang() - sizeof(state)=%d\n", sizeof(state));
-   for (int j= 1; j<sizeof(state); j++) { state[j]= j; } //0xFF; }
-   for (int i=0; i<n; i++)
+   for (int j= 0; j<nS; j++) { state[j]= nS-j; } //0xFF; }
+   for (int i=0; i<nIvl; i++)
    {
-      state[0]= i;
+      //state[0]= i;
       //state[0xFF]= state[0] ^ 0xFF;
-      ftdi_write_data(pFC, state, sizeof(state[0]));
+      ftdi_write_data(pFC, state, nS);
       usleep(usIvl);
    }
-   state[0]= 0xFF;
+   state[0]= 0x00; //FF;
    ftdi_write_data(pFC, state, 1);
 } // flashBang
 
@@ -182,7 +212,6 @@ void devTest1 (const U16 devid, const U8 outMask, const int baudRate, const U8 f
    FTCtx *pFCA, *pFCB= NULL;
    long usIvl= MICRO_TICKS/18.75;
 
-   if (baudRate > 0) { printf("Requesting serial rate %d bd -> %d Hz in BitBang mode\n", baudRate, baudRate*16); }
    pFCA= ftInitUSB(devid, INTERFACE_A, baudRate, flags);
    if (pFCA)
    {
@@ -239,6 +268,8 @@ int main (int argc, char *argv[])
    U16 id= ID_PROD_FT2232;
    //burnEEPROM(ID_PROD_FT232, "DR","232RL","1");
    //burnEEPROM(ID_PROD_FT2232, "18069A_P26", "2232H", "191216");
+   // error report: "Note: bitbang baudrates are automatically multiplied by 4"
+   // 4 ? not 16 ? experiment needed....
    // 300 seems to be lowest supported rate (4.8kHz bit-bang = 18.75 * 256B)
    devTest1(id, 0xFF, 300, 0xF0);
    return(0);
