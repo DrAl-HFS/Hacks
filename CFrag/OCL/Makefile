@@ -1,15 +1,15 @@
 TARGET:= ocl1
 MAKEFILE:=Makefile
 SRC:= $(TARGET).c
-OCL_VER:= 110
+OCL_VER:= 120
 
 DEFINES:= -DCL_TARGET_OPENCL_VERSION=$(OCL_VER)
 LIBS:= -lOpenCL
 
 all : $(TARGET) $(MAKEFILE)
 
-$(TARGET) : $(SRC)
-	clang $< $(DEFINES) $(LIBS) -o $@
+$(TARGET) : $(SRC) $(MAKEFILE)
+	clang $(SRC) $(DEFINES) $(LIBS) -o $@
 
 run : $(TARGET)
 	./$(TARGET)
