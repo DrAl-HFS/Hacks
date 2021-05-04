@@ -41,6 +41,7 @@ int main (int argc, char *argv[])
       if ((r < 0) || (b <= 0)) { s= "?"; } else { s= buf; }
       printf("DBG: platform id= 0x%X -> %s\n", (cl_uint)idPfrm[i], s);
 
+      nDev= 0;
       r= clGetDeviceIDs(idPfrm[i], CL_DEVICE_TYPE_ALL, MAX_DEV_ID, idDev, &nDev);
       printf("DBG: clGetDeviceIDs( *ALL ) - %d ", r); printAlt(gAF, nDev >= (1<<20), nDev);
       for (int i = 0; i < nDev; i++)
