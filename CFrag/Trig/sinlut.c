@@ -34,8 +34,8 @@ void genLutX (const Scalar x0, const Scalar dx, const int n, const int kX)
    Scalar *pS= malloc(n * sizeof(*pS));
    if (pS)
    {
-      //genf1dx(pS, n, x0, dx, sinf);
-      genf2dx(pS, n, x0, dx, ivlSinAvg);
+      genf1dx(pS, n, x0, dx, sinf);
+      //genf2dx(pS, n, x0, dx, ivlSinAvg);
       for (int i=0; i<n; i++)
       {
          int sX= 0.5 + pS[i] * kX; // round up fixed point
@@ -60,20 +60,25 @@ void precTest (void)
 } // precTest
 #endif
 
-void genOffsetX (const Scalar dom[2], const int n, const int kX)
+void genDomX (const Scalar dom[2], const int n, const int kX)
 {
-   const Scalar offset= (dom[1]-dom[0]) / (2*n); // deliberate skew
-   const Scalar dx= ((dom[1]-offset) - (dom[0]+offset)) / (n-1); // n-1 intervals
+   const Scalar dx= (dom[1] - dom[0]) / (n-1); // n-1 intervals
+   genLutX(dom[0], dx, n, 0x7F);
+} // genDomX
 
-   genLutX(dom[0]+offset, dx, n, kX);
-} // genMidX
+void genOffsDomX (const Scalar dom[2], const int n, const int kX)
+{
+   const Scalar offset= (dom[1] - dom[0]) / (10*n); // deliberate skew
+   const Scalar oDom[2]= {dom[0]+offset, dom[1]-offset};
+
+   genDomX(oDom, n, kX);
+} // genOffsDomX
 
 int main (int argc, char *argv[])
 {
    const int n= 16;
    const Scalar dom[2]={ 0, 0.5*M_PI };
 
-   //genOffsetX(dom, n, 0x7F);
-   const Scalar dx= (dom[1] - dom[0]) / (n-1); // n-1 intervals
-   genLutX(dom[0], dx, n, 0x7F);
+   genOffsDomX(dom, n, 0x7F);
+   //genDomX(dom,n,0x7F);
 } // main
