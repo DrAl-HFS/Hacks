@@ -3,6 +3,9 @@
 // Licence: AGPL3
 // (c) Project Contributors Apr 2021
 
+// RPi OS64 (POCL) setup:
+// sudo apt install opencl-* clinfo
+
 #include <stdio.h>
 #include <string.h>
 #include <CL/cl.h>
@@ -30,6 +33,10 @@ int main (int argc, char *argv[])
       printf("DBG: id=0x%X\n", (size_t)idPfrm[i]);
       r= clGetDeviceIDs(idPfrm[i], CL_DEVICE_TYPE_ALL, MAX_DEV_ID, idDev, &nDev);
       printf("DBG: clGetDeviceIDs( *ALL ) - %d ", r); printAlt(gAF, nDev >= (1<<20), nDev);
+      for (int i = 0; i < nDev; i++)
+      {
+         printf("DBG: id=0x%X\n", (size_t)idDev[i]);
+      }
       if (r < 0)
       {
          r= clGetDeviceIDs(idPfrm[i], CL_DEVICE_TYPE_CPU, MAX_DEV_ID, idDev, &nDev);
