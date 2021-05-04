@@ -3,8 +3,12 @@
 // Licence: AGPL3
 // (c) Project Contributors Apr 2021
 
-// RPi OS64 (POCL) setup:
-// sudo apt install opencl-* clinfo
+// RaspiOS64 (POCL) setup:
+// > sudo apt install opencl-* clinfo
+// Installs clang-6.0 without generic <clang> link so do:
+// > sudo ln -s /usr/bin/clang-6.0 /usr/bin/clang
+// NB: POCL and OpenCL in general appear to be non-functional
+// under RaspiOS32. (YMMV?)
 
 #include <stdio.h>
 #include <string.h>
@@ -30,12 +34,12 @@ int main (int argc, char *argv[])
 
    for (int i = 0; i < nPfrm; i++)
    {
-      printf("DBG: id=0x%X\n", (size_t)idPfrm[i]);
+      printf("DBG: id=0x%X\n", (cl_uint)idPfrm[i]);
       r= clGetDeviceIDs(idPfrm[i], CL_DEVICE_TYPE_ALL, MAX_DEV_ID, idDev, &nDev);
       printf("DBG: clGetDeviceIDs( *ALL ) - %d ", r); printAlt(gAF, nDev >= (1<<20), nDev);
       for (int i = 0; i < nDev; i++)
       {
-         printf("DBG: id=0x%X\n", (size_t)idDev[i]);
+         printf("DBG: id=0x%X\n", (cl_uint)idDev[i]);
       }
       if (r < 0)
       {
