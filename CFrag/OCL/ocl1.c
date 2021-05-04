@@ -1,7 +1,7 @@
 // ocl1.c - Minimal OpenCL device check
 // https://github.com/DrAl-HFS/Hacks.git
 // Licence: AGPL3
-// (c) Project Contributors Apr 2021
+// (c) Project Contributors Apr - May 2021
 
 // RaspiOS64 (POCL) setup:
 // > sudo apt install opencl-* clinfo
@@ -25,6 +25,9 @@ int main (int argc, char *argv[])
    cl_platform_id idPfrm[MAX_PF_ID]={0,};
    cl_device_id idDev[MAX_DEV_ID]={0,};
    cl_uint nPfrm, nDev;
+   char buf[64];
+   const char *s;
+   size_t b=0;
    cl_int r;
 
    printf("Build target : OpenCl V%u\n", CL_TARGET_OPENCL_VERSION);
@@ -34,21 +37,24 @@ int main (int argc, char *argv[])
 
    for (int i = 0; i < nPfrm; i++)
    {
-      printf("DBG: id=0x%X\n", (cl_uint)idPfrm[i]);
+      r= clGetPlatformInfo(idPfrm[i], CL_PLATFORM_NAME, sizeof(buf)-1, buf, &b);
+      if ((r < 0) || (b <= 0)) { s= "?"; } else { s= buf; }
+      printf("DBG: platform id= 0x%X -> %s\n", (cl_uint)idPfrm[i], s);
+
       r= clGetDeviceIDs(idPfrm[i], CL_DEVICE_TYPE_ALL, MAX_DEV_ID, idDev, &nDev);
       printf("DBG: clGetDeviceIDs( *ALL ) - %d ", r); printAlt(gAF, nDev >= (1<<20), nDev);
       for (int i = 0; i < nDev; i++)
       {
-         printf("DBG: id=0x%X\n", (cl_uint)idDev[i]);
-      }
-      if (r < 0)
-      {
-         r= clGetDeviceIDs(idPfrm[i], CL_DEVICE_TYPE_CPU, MAX_DEV_ID, idDev, &nDev);
-         printf("DBG: clGetDeviceIDs( *CPU ) - %d ", r); printAlt(gAF, nDev >= (1<<20), nDev);
+         s= buf;
+         r= clGetDeviceInfo(idDev[i], CL_DEVICE_NAME, sizeof(buf)-1, buf, &b);
+         if ((r < 0) || (b <= 0)) { s= "?"; } else { s= buf; }
+         printf("DBG: device id= 0x%X -> [%u] %s\n", (cl_uint)idDev[i], b, s);
 
-         r= clGetDeviceIDs(idPfrm[i], CL_DEVICE_TYPE_GPU, MAX_DEV_ID, idDev, &nDev);
-         printf("DBG: clGetDeviceIDs( *GPU ) - %d ", r);  printAlt(gAF, nDev >= (1<<20), nDev);
-      }
+         b= 0;
+         r= clGetDeviceInfo(idDev[i], CL_DRIVER_VERSION, sizeof(buf)-1, buf, &b);
+         if ((r < 0) || (b <= 0)) { s= "?"; } else { s= buf; }
+         printf("DBG: version [%u] %s\n", b, s);
+     }
    }
    return((nDev > 0)-1);
 } // main
