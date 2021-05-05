@@ -4,7 +4,7 @@ SRC:= $(TARGET).c
 OCL_VER:= 120
 
 DEFINES:= -DCL_TARGET_OPENCL_VERSION=$(OCL_VER)
-LIBS:= -lOpenCL
+LIBS:= -lOpenCL -lm
 
 all : $(TARGET) $(MAKEFILE)
 
