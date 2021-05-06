@@ -1,10 +1,10 @@
 TARGET:= ocl1
 MAKEFILE:=Makefile
-SRC:= $(TARGET).c
+SRC:= $(TARGET).cpp
 OCL_VER:= 120
 
 DEFINES:= -DCL_TARGET_OPENCL_VERSION=$(OCL_VER)
-LIBS:= -lOpenCL -lm
+LIBS:= -lOpenCL -lm -lstdc++
 
 all : $(TARGET) $(MAKEFILE)
 

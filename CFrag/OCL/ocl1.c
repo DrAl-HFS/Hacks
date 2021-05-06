@@ -1,4 +1,4 @@
-// ocl1.c - Minimal OpenCL device test
+// ocl1.c - Minimal OpenCL device test in C.
 // https://github.com/DrAl-HFS/Hacks.git
 // Licence: AGPL3
 // (c) Project Contributors Apr - May 2021
@@ -6,7 +6,7 @@
 // For Debian-flavoured Linux on x86, Jetson-Nano, RPi3,4 (64bit OS required).
 // POCL (CPU SIMD only acceleration) setup:
 // > sudo apt install *opencl-* clinfo
-// NB: may install clang-6.0 without generic <clang> link so do:
+// NB: may install clang-6.0 without generic <clang> link so if necessary do:
 // > sudo ln -s /usr/bin/clang-6.0 /usr/bin/clang
 
 #include <stdio.h>
@@ -274,7 +274,7 @@ int main (int argc, char *argv[])
 
    if (nDev > 0)
    {
-      SimpleOCL simple;
+      CSimpleOCL simple;
       ArgsOCL args;
       BuildOCL build;
       if ((createSimple(&simple, idDev[0]) >= 0) && (createArgs(&args, &simple, 1<<20) >= 0))
