@@ -1,14 +1,13 @@
-// ocl1.c - Minimal OpenCL device check
+// ocl1.c - Minimal OpenCL device test
 // https://github.com/DrAl-HFS/Hacks.git
 // Licence: AGPL3
 // (c) Project Contributors Apr - May 2021
 
-// RaspiOS64 (POCL) setup:
-// > sudo apt install opencl-* clinfo
-// Installs clang-6.0 without generic <clang> link so do:
+// For Debian-flavoured Linux on x86, Jetson-Nano, RPi3,4 (64bit OS required).
+// POCL (CPU SIMD only acceleration) setup:
+// > sudo apt install *opencl-* clinfo
+// NB: may install clang-6.0 without generic <clang> link so do:
 // > sudo ln -s /usr/bin/clang-6.0 /usr/bin/clang
-// NB: POCL and OpenCL in general appear to be non-functional
-// under RaspiOS32. (YMMV?)
 
 #include <stdio.h>
 #include <string.h>
