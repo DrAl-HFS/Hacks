@@ -4,9 +4,9 @@
 // (c) Project Contributors Apr - May 2021
 
 #include <iostream>
-//#include <cstdlib>
-//#include <math.h>
 #include <cmath>
+
+#include <cstdlib> // DEBUG
 
 #include "SimpleOCL.hpp"
 #include "StrTab.hpp"
@@ -180,14 +180,36 @@ public:
 
 /***/
 
+int copyStrN (char *d, const char *s, int n)
+{
+   int i= 0;
+   if (d && s && (n > 0)) 
+   {
+      do
+      {
+         d[i]= s[i];
+      } while (s[i] && (++i < n));
+   }
+   return(i);
+} // copyStrN
+
 bool addDevStr (CStrTabASCII& t, const cl_device_id id, const cl_device_info tok[], const int n)
 {
    if (!t.valid()) return(false);
    for (int i=0; i<n; i++)
    {
-      size_t b= 0;
-      if (t.full()) { return(false); }
-      if (clGetDeviceInfo(id, tok[i], t.elemAvail(), t.next(), &b) >= 0) { t.commit(b); }
+      int a= t.elemAvail();
+      if (a > 1)
+      {
+         size_t b= 0;
+         char *p= t.next();
+         if (clGetDeviceInfo(id, tok[i], a, p, &b) < 0)
+         {
+            a= copyStrN(p,"?",a);
+            if (a > 0) { b= a; }
+         }
+         t.commit(b); // printf("%d : %s (%zu)\n", i, p, b);
+      }
    }
    return(true);
 } // addDevStr
@@ -236,8 +258,6 @@ int queryDev (cl_device_id idDev[], int maxD)
    size_t b=0;
    cl_int r;
 
-   if (!st.valid() ) { exit(-2); }
-   //&& !st.allocate(32,29)
    std::cout << "Build target : OpenCl V" << CL_TARGET_OPENCL_VERSION << std::endl;
    if (clGetPlatformIDs(MAX_PF_ID, idPfrm, &nPfrm) >= 0)
    {
