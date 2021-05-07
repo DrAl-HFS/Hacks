@@ -182,6 +182,7 @@ public:
 
 bool addDevStr (CStrTabASCII& t, const cl_device_id id, const cl_device_info tok[], const int n)
 {
+   if (!t.valid()) return(false);
    for (int i=0; i<n; i++)
    {
       size_t b= 0;
@@ -235,6 +236,8 @@ int queryDev (cl_device_id idDev[], int maxD)
    size_t b=0;
    cl_int r;
 
+   if (!st.valid() ) { exit(-2); }
+   //&& !st.allocate(32,29)
    std::cout << "Build target : OpenCl V" << CL_TARGET_OPENCL_VERSION << std::endl;
    if (clGetPlatformIDs(MAX_PF_ID, idPfrm, &nPfrm) >= 0)
    {
@@ -257,10 +260,10 @@ int queryDev (cl_device_id idDev[], int maxD)
 #if 1
                st.setup();
                addDevStr(st, idDev[iD], ditok, 4);
-               std::cout << "\t" << st[0] << "(" << st[1] << ")" << st[2] << "(Driver V" << st[3] << ")" << std::endl;
+               std::cout << "\t" << st[0] << " (" << st[1] << ") " << st[2] << " (Driver V" << st[3] << ")" << std::endl;
 #else
                getDevStr(s+1, buf, sizeof(buf)-1, idDev[iD], ditok, 4);
-               std::cout << "\t" << s[1] << "(" << s[2] << ")" << s[3] << "(Driver V" << s[4] << ")" << std::endl;
+               std::cout << "\t" << s[1] << " (" << s[2] << ") " << s[3] << " (Driver V" << s[4] << ")" << std::endl;
 #endif
             }
             nDev+= n;

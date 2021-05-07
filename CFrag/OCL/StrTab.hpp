@@ -23,7 +23,7 @@ protected:
    StrTabIdx   maxI, maxE;
    StrTabIdx   nI, nE;
 
-   CStrTabBase (int mI=0, int mE=0) : pI{NULL}, pE{NULL}, nI{0}, nE{0} { allocate(mI,nE); }
+   CStrTabBase (int mI=0, int mE=0) : pI{NULL}, pE{NULL}, nI{0}, nE{0} { allocate(mI,mE); }
    ~CStrTabBase () { release(); }
 
    bool allocate (int mI, int mE)

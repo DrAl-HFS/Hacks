@@ -1,15 +1,18 @@
+CC:= clang
+OPT:= -g
 TARGET:= ocl1
 MAKEFILE:=Makefile
 SRC:= $(TARGET).cpp
+HDR:=  $(shell ls *.hpp)
 OCL_VER:= 120
 
-DEFINES:= -DCL_TARGET_OPENCL_VERSION=$(OCL_VER)
+DEFINES:= -DCL_TARGET_OPENCL_VERSION=$(OCL_VER) -DOPENCL_LIB_200
 LIBS:= -lOpenCL -lm -lstdc++
 
 all : $(TARGET) $(MAKEFILE)
 
-$(TARGET) : $(SRC) $(MAKEFILE)
-	clang $(SRC) $(DEFINES) $(LIBS) -o $@
+$(TARGET) : $(SRC) $(HDR) $(MAKEFILE)
+	$(CC) $(OPT) $(SRC) $(DEFINES) $(LIBS) -o $@
 
 run : $(TARGET)
 	./$(TARGET)
