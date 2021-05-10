@@ -9,14 +9,10 @@
 #include <cstdlib> // DEBUG
 
 #include "SimpleOCL.hpp"
-#include "StrTab.hpp"
+#include "QueryOCL.hpp"
 
 
 /***/
-
-#define MAX_PF_ID    2
-#define MAX_DEV_ID   4
-
 
 typedef float Scalar;
 
@@ -81,9 +77,6 @@ struct DeviceArgs
    }
 }; // DeviceArgs
 
-
-/***/
-
 void initData (const HostArgs& h)
 {
    for (size_t i= 0; i < h.n; i++)
@@ -101,10 +94,6 @@ Scalar sum (const Scalar v[], const size_t n)
    for (size_t i=1; i<n; i++) { s+= v[i]; }
    return(s);
 } // sum
-
-
-/***/
-
 
 class CVecAddOCL : public CBuildOCL
 {
@@ -178,120 +167,6 @@ public:
 }; // CVecAddOCL
 
 
-/***/
-
-int copyStrN (char *d, const char *s, int n)
-{
-   int i= 0;
-   if (d && s && (n > 0)) 
-   {
-      do
-      {
-         d[i]= s[i];
-      } while (s[i] && (++i < n));
-   }
-   return(i);
-} // copyStrN
-
-bool addDevStr (CStrTabASCII& t, const cl_device_id id, const cl_device_info tok[], const int n)
-{
-   if (!t.valid()) return(false);
-   for (int i=0; i<n; i++)
-   {
-      int a= t.elemAvail();
-      if (a > 1)
-      {
-         size_t b= 0;
-         char *p= t.next();
-         if (clGetDeviceInfo(id, tok[i], a, p, &b) < 0)
-         {
-            a= copyStrN(p,"?",a);
-            if (a > 0) { b= a; }
-         }
-         t.commit(b); // printf("%d : %s (%zu)\n", i, p, b);
-      }
-   }
-   return(true);
-} // addDevStr
-
-// Generate table of strings (c-string i.e. nul-terminated ASCII) from tokens
-size_t getDevStr
-(
-   const char *s[],     // string table (result)
-   char buf[],           // buffer to hold strings
-   const int maxBuf,    // max size of buffer
-   const cl_device_id id,  // device to query
-   const cl_device_info tok[],   // token array
-   const int n    // number of tokens (and strings)
-)
-{
-   int nB=0;
-   for (int i=0; i<n; i++)
-   {
-      int rem= maxBuf-nB;
-      if (rem > 0)
-      {
-         size_t b= 0;
-         if ((clGetDeviceInfo(id, tok[i], rem, buf+nB, &b) < 0) || (b <= 1))
-         {
-            buf[nB++]= '?'; buf[nB++]= 0x0; // generate placeholder for error/incomplete
-         }
-         else
-         {
-            s[i]= buf+nB;
-            nB+= b;
-         }
-      } else { s[i]= NULL; }
-   }
-   return(nB);
-} // getDevStr
-
-int queryDev (cl_device_id idDev[], int maxD)
-{
-   CStrTabASCII st;
-
-   char buf[1<<8];
-   cl_platform_id idPfrm[MAX_PF_ID]={0,};
-   cl_uint nPfrm, n;
-   int nDev=0;
-   const char *s[5];
-   size_t b=0;
-   cl_int r;
-
-   std::cout << "Build target : OpenCl V" << CL_TARGET_OPENCL_VERSION << std::endl;
-   if (clGetPlatformIDs(MAX_PF_ID, idPfrm, &nPfrm) >= 0)
-   {
-      std::cout << nPfrm << "platform(s):" << std::endl;
-
-      for (int iP= 0; iP < nPfrm; iP++)
-      {
-         r= clGetPlatformInfo(idPfrm[iP], CL_PLATFORM_NAME, sizeof(buf)-1, buf, &b);
-         if ((r < 0) || (b <= 0)) { s[0]= "?"; } else { s[0]= buf; }
-         std::cout << "platform id= " << idPfrm[iP] << "->" << s[0] << ":" << std::endl;
-
-         int remD= maxD-nDev;
-         if (remD < 0) { remD= 0; }
-         if (clGetDeviceIDs(idPfrm[iP], CL_DEVICE_TYPE_ALL, remD, idDev+nDev, &n) >= 0)
-         {
-            std::cout << n << " device(s):" << std::endl;
-            for (int iD= nDev; iD < nDev+n; iD++)
-            {
-               const cl_device_info ditok[]={ CL_DEVICE_NAME, CL_DEVICE_VENDOR, CL_DEVICE_VERSION, CL_DRIVER_VERSION };
-#if 1
-               st.setup();
-               addDevStr(st, idDev[iD], ditok, 4);
-               std::cout << "\t" << st[0] << " (" << st[1] << ") " << st[2] << " (Driver V" << st[3] << ")" << std::endl;
-#else
-               getDevStr(s+1, buf, sizeof(buf)-1, idDev[iD], ditok, 4);
-               std::cout << "\t" << s[1] << " (" << s[2] << ") " << s[3] << " (Driver V" << s[4] << ")" << std::endl;
-#endif
-            }
-            nDev+= n;
-         }
-      }
-   }
-   return(nDev);
-} // queryDev
 
 
 /***/
@@ -302,6 +177,9 @@ int main (int argc, char *argv[])
    cl_uint        nDev= queryDev(idDev, MAX_DEV_ID);
    int r=-1;
 
+   //std::cout << sizeof(cl_device_info) << std::endl;
+   //std::cout << sizeof(cl_platform_info) << std::endl;
+   
    if (nDev > 0)
    {
       CVecAddOCL va;
