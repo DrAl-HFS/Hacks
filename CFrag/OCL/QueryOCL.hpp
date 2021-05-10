@@ -26,9 +26,9 @@ class PlatformInfo : public InfoFunc
 {
 public:
    cl_platform_id pfmID;
-   
+
    PlatformInfo (const cl_platform_id id) : pfmID{id} { ; }
-   
+
    virtual size_t operator () (char *p, const size_t max, const int tok) const override
    {
       size_t b= 0;
@@ -41,9 +41,9 @@ class DevInfo : public InfoFunc
 {
 public:
    cl_device_id devID;
-   
+
    DevInfo (const cl_device_id id) : devID{id} { ; }
-   
+
    virtual size_t operator () (char *p, const size_t max, const int tok) const override
    {
       size_t b= 0;
@@ -104,7 +104,7 @@ int queryDev (cl_device_id idDev[], int maxD)
          const cl_platform_info tokPfm[]={ CL_PLATFORM_NAME, CL_PLATFORM_PROFILE, CL_PLATFORM_EXTENSIONS };
          st.setup();
          addStr(st, PlatformInfo(idPfm[iP]), tokPfm, 3);
-         std::cout << "platform id= " << idPfm[iP] << "->" << st[0] << " (" << st[1] << ', ' << st[2] << ") " << std::endl;
+         std::cout << "platform id= " << idPfm[iP] << "->" << st[0] << " (" << st[1] << ", " << st[2] << ") " << std::endl;
 
          int remD= maxD-nDev;
          if (remD < 0) { remD= 0; }
