@@ -6,8 +6,6 @@
 #include <iostream>
 #include <cmath>
 
-#include <cstdlib> // DEBUG
-
 #include "SimpleOCL.hpp"
 #include "QueryOCL.hpp"
 
@@ -179,7 +177,7 @@ int main (int argc, char *argv[])
 
    //std::cout << sizeof(cl_device_info) << std::endl;
    //std::cout << sizeof(cl_platform_info) << std::endl;
-   
+
    if (nDev > 0)
    {
       CVecAddOCL va;

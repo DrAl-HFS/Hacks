@@ -13,7 +13,7 @@
 #define MAX_PF_ID    2
 #define MAX_DEV_ID   4
 
-// Function-encapsulating or "functor" base class
+// Function-encapsulation "functor" base class
 class InfoFunc
 {
 public:
@@ -56,7 +56,7 @@ public:
 int copyStrN (char *d, const char *s, int n)
 {
    int i= 0;
-   if (d && s && (n > 0)) 
+   if (d && s && (n > 0))
    {
       do
       {
@@ -71,17 +71,17 @@ bool addStr (CStrTabASCII& t, const InfoFunc& f, const cl_device_info tok[], con
    if (!t.valid()) return(false);
    for (int i=0; i<n; i++)
    {
-      int a= t.elemAvail();
+      int a= t.elemAvail(); //printf("a=%d\n", a);
       if (a > 1)
       {
          char *p= t.next();
          size_t b= f(p, a, tok[i]);
-         if (b <= 0)
+         if (b <= 1) // nul -> marker
          {
             a= copyStrN(p,"?",a);
             if (a > 0) { b= a; }
          }
-         t.commit(b); // printf("%d : %s (%zu)\n", i, p, b);
+         t.commit(b); //printf("%d : %s (%zu)\n", i, p, b);
       }
    }
    return(true);

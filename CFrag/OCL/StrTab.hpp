@@ -5,9 +5,17 @@
 
 // A basic string table is useful for many hacks:
 // development using a complex API, simple parsing etc.
+// This example uses indices to eliminate the overhead
+// of numerous pointers (commonly 64bits under most OS,
+// at the time of writing) and maximise portability to
+// embedded applications where resources are limited.
 
 #ifndef STR_TAB_HPP
 #define STR_TAB_HPP
+
+#ifdef DEBUG
+#include <cstdlib>
+#endif
 
 typedef uint16_t StrTabIdx;
 typedef signed char StrTabElem;
@@ -108,7 +116,7 @@ const StrTabElem CStrTabBase::_nul=0x0; // singleton ?
 class CStrTabASCII : public CStrTabBase
 {
 public:
-   CStrTabASCII (int maxS=32, int expectLenS=29) : CStrTabBase(maxS,expectLenS+1) { ; }  // 1kbyte default
+   CStrTabASCII (int maxS=32, int expectLenS=29) : CStrTabBase(maxS,maxS*(expectLenS+1)) { ; }  // 1kbyte default
 
    char *next (void)
    {
